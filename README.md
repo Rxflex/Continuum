@@ -1,4 +1,15 @@
-# Continuum
+<p align="center">
+  <img src="assets/banner.svg" alt="Continuum" width="820">
+</p>
+
+<p align="center">
+  <a href="https://github.com/redstone-md/Continuum/actions/workflows/ci.yml">
+    <img src="https://github.com/redstone-md/Continuum/actions/workflows/ci.yml/badge.svg" alt="CI">
+  </a>
+  <img src="https://img.shields.io/badge/license-MIT-3b82f6" alt="License: MIT">
+  <img src="https://img.shields.io/badge/built_with-Rust-f97316" alt="Built with Rust">
+  <img src="https://img.shields.io/badge/MCP-server-8b5cf6" alt="MCP server">
+</p>
 
 A persistent, multi-agent **Model Context Protocol (MCP)** server. Continuum gives
 AI coding agents — Claude Code, OpenCode, Codex, Gemini CLI — a shared, live view
