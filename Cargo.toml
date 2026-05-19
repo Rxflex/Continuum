@@ -29,7 +29,7 @@ petgraph = "0.6"
 rusqlite = { version = "0.32", features = ["bundled"] }
 rand = "0.8"
 fs2 = "0.4"
-clap = { version = "4", features = ["derive"] }
+clap = { version = "4", features = ["derive", "env"] }
 
 continuum-core = { path = "crates/continuum-core" }
 continuum-transport = { path = "crates/continuum-transport" }

@@ -73,6 +73,18 @@ The adapter uses the current working directory as the workspace root, or pass
 Per-agent configuration — Claude Code, Codex CLI, Gemini CLI, and OpenCode — is
 in [docs/agent-setup.md](docs/agent-setup.md).
 
+## Configuration
+
+Continuum reads its settings from the environment, so they propagate through the
+agent → adapter → daemon spawn chain. All are optional.
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `CONTINUUM_MODEL` | `minishlab/potion-base-8M` | Embedding-model repo. Set to `off` to disable semantic search (lexical-only). |
+| `CONTINUUM_IDLE_MINUTES` | `30` | Idle minutes before the daemon exits (`0` = never). |
+| `CONTINUUM_MAX_FILE_KIB` | `2048` | Largest file size indexed, in KiB. |
+| `CONTINUUM_DEBOUNCE_MS` | `300` | Filesystem-watch debounce window. |
+
 ## MCP tools
 
 | Tool | Purpose |

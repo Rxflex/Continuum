@@ -22,7 +22,9 @@ adheres to [Semantic Versioning](https://semver.org/).
 - Background embedding-model load so the daemon never blocks startup.
 - Graceful shutdown on Ctrl-C / SIGTERM.
 - Reliability limits: AST-depth cap, file-size cap, and clamped tool arguments.
-- Unit test suite and a GitHub Actions CI pipeline (fmt, clippy, build, test on
-  Linux and Windows).
+- Environment-variable configuration: `CONTINUUM_MODEL`,
+  `CONTINUUM_IDLE_MINUTES`, `CONTINUUM_MAX_FILE_KIB`, `CONTINUUM_DEBOUNCE_MS`.
+- Unit and end-to-end test suites, and a GitHub Actions CI pipeline (fmt,
+  clippy, build, test on Linux and Windows).
 
 [Unreleased]: https://github.com/Rxflex/Continuum/commits/main

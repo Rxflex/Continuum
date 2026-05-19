@@ -35,7 +35,7 @@ struct Args {
     #[arg(long)]
     workspace: PathBuf,
     /// Idle minutes before the daemon shuts itself down (0 = never).
-    #[arg(long, default_value_t = 30)]
+    #[arg(long, env = "CONTINUUM_IDLE_MINUTES", default_value_t = 30)]
     idle_minutes: u64,
 }
 

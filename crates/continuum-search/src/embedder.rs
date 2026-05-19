@@ -7,8 +7,8 @@
 use anyhow::Result;
 use model2vec_rs::model::StaticModel;
 
-/// HuggingFace repo of the static embedding model (~30 MB, downloaded once).
-const MODEL_REPO: &str = "minishlab/potion-base-8M";
+/// Default HuggingFace repo of the static embedding model (~30 MB).
+const DEFAULT_MODEL_REPO: &str = "minishlab/potion-base-8M";
 
 /// Loaded embedding model. Cheap to call; clone-free, shared behind an `Arc`.
 pub struct Embedder {
@@ -16,9 +16,17 @@ pub struct Embedder {
 }
 
 impl Embedder {
-    /// Load the model, downloading it from HuggingFace on first use.
+    /// Load the embedding model, downloading it from HuggingFace on first use.
+    ///
+    /// The repo is overridable with the `CONTINUUM_MODEL` environment variable;
+    /// setting it to `off` (or `none`) disables semantic search entirely.
     pub fn load() -> Result<Embedder> {
-        let model = StaticModel::from_pretrained(MODEL_REPO, None, Some(true), None)?;
+        let repo =
+            std::env::var("CONTINUUM_MODEL").unwrap_or_else(|_| DEFAULT_MODEL_REPO.to_string());
+        if matches!(repo.trim(), "" | "off" | "none" | "disabled") {
+            anyhow::bail!("semantic search disabled via CONTINUUM_MODEL");
+        }
+        let model = StaticModel::from_pretrained(&repo, None, Some(true), None)?;
         Ok(Embedder { model })
     }
 

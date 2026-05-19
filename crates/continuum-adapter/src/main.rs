@@ -22,7 +22,7 @@ struct Args {
     #[arg(long)]
     workspace: Option<PathBuf>,
     /// Idle minutes passed through to a freshly spawned daemon.
-    #[arg(long, default_value_t = 30)]
+    #[arg(long, env = "CONTINUUM_IDLE_MINUTES", default_value_t = 30)]
     idle_minutes: u64,
 }
 

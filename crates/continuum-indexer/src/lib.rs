@@ -106,14 +106,21 @@ fn symbol_docs(parsed: &parser::ParsedFile) -> Vec<SymbolDoc> {
         .collect()
 }
 
-/// Files larger than this are skipped during indexing — generated bundles and
-/// vendored blobs, not code an agent navigates by symbol.
-const MAX_FILE_BYTES: u64 = 2 * 1024 * 1024;
+/// Largest file indexed, in bytes — override with `CONTINUUM_MAX_FILE_KIB`.
+/// Files above this are skipped: generated bundles and vendored blobs, not code
+/// an agent navigates by symbol.
+static MAX_FILE_BYTES: std::sync::LazyLock<u64> = std::sync::LazyLock::new(|| {
+    std::env::var("CONTINUUM_MAX_FILE_KIB")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .map(|kib| kib * 1024)
+        .unwrap_or(2 * 1024 * 1024)
+});
 
 fn parse_path(root: &Path, abs: &Path) -> Option<(String, parser::ParsedFile)> {
     let ext = abs.extension()?.to_str()?;
     let lang = Lang::from_extension(ext)?;
-    if std::fs::metadata(abs).ok()?.len() > MAX_FILE_BYTES {
+    if std::fs::metadata(abs).ok()?.len() > *MAX_FILE_BYTES {
         return None;
     }
     let source = std::fs::read_to_string(abs).ok()?;
