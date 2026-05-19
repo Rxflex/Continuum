@@ -60,17 +60,22 @@ the same directory.
 
 ### From source
 
-With a recent stable Rust toolchain:
+With a recent stable Rust toolchain, from a checkout of this repository:
 
 ```
-cargo build --release
+sh scripts/install.sh          # Linux / macOS
+powershell scripts/install.ps1 # Windows
 ```
 
-or install onto your `PATH`:
+The script builds and installs `continuum-adapter` and `continuum-daemon` into
+`~/.cargo/bin` — no registry or account involved. By hand it is just:
 
 ```
-cargo install --git https://github.com/Rxflex/Continuum continuum-adapter continuum-daemon
+cargo install --path crates/continuum-adapter
+cargo install --path crates/continuum-daemon
 ```
+
+Or run `cargo build --release` and use the binaries from `target/release/`.
 
 On first run the daemon downloads a ~30 MB embedding model from HuggingFace for
 semantic search; if that fails (e.g. offline), search falls back to lexical-only
