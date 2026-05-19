@@ -15,7 +15,7 @@ const TARGETS = {
   "win32-x64": "x86_64-pc-windows-msvc",
 };
 
-const REPO = "Rxflex/Continuum";
+const REPO = "redstone-md/continuum";
 
 async function main() {
   const key = `${process.platform}-${process.arch}`;

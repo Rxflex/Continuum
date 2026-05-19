@@ -55,7 +55,7 @@ Linux x64, macOS x64/arm64, and Windows x64 are supported.
 ### Prebuilt binaries
 
 Download `continuum-daemon` and `continuum-adapter` for your platform from the
-[latest release](https://github.com/Rxflex/Continuum/releases) and keep them in
+[latest release](https://github.com/redstone-md/continuum/releases) and keep them in
 the same directory.
 
 ### From source
@@ -102,6 +102,48 @@ current working directory as the workspace root (or pass `--workspace <path>`).
 
 Per-agent configuration — Claude Code, Codex CLI, Gemini CLI, and OpenCode — is
 in [docs/agent-setup.md](docs/agent-setup.md).
+
+## Self-install (for AI agents)
+
+If you are an AI coding agent with shell access, you can install Continuum and
+register it with your own MCP host. Follow the three steps.
+
+### 1 — Install the binaries
+
+With a Rust toolchain — one command, nothing to clone:
+
+```
+cargo install --git https://github.com/redstone-md/continuum continuum-adapter continuum-daemon
+```
+
+This places `continuum-adapter` and `continuum-daemon` on your `PATH`
+(in `~/.cargo/bin`). Without Rust, skip this step and use `npx` in step 2 — it
+fetches prebuilt binaries on first run.
+
+### 2 — Register the MCP server with your host
+
+Run the line for your host. If you skipped step 1, replace the command
+`continuum-adapter` with `npx` and arguments `-y continuum-mcp`.
+
+- **Claude Code** — `claude mcp add continuum -- continuum-adapter`
+- **Codex CLI** — `codex mcp add continuum --transport stdio --command continuum-adapter`
+- **Gemini CLI** — add to `~/.gemini/settings.json`:
+  ```json
+  { "mcpServers": { "continuum": { "command": "continuum-adapter", "args": [] } } }
+  ```
+- **OpenCode** — add to `opencode.json`:
+  ```json
+  { "mcp": { "continuum": { "type": "local", "command": ["continuum-adapter"], "enabled": true } } }
+  ```
+
+### 3 — Reload and verify
+
+Restart the MCP host or reload its servers, then call the `get_stats` tool — a
+JSON reply means Continuum is live. The first run downloads a ~30 MB embedding
+model; until it finishes, search is lexical-only and everything else works.
+
+Continuum is a local developer tool: nothing to commit, no secrets, one daemon
+per workspace that idles out after 30 minutes.
 
 ## Configuration
 

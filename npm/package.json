@@ -6,9 +6,9 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Rxflex/Continuum.git"
+    "url": "git+https://github.com/redstone-md/continuum.git"
   },
-  "homepage": "https://github.com/Rxflex/Continuum",
+  "homepage": "https://github.com/redstone-md/continuum",
   "bin": {
     "continuum-mcp": "bin/continuum.js"
   },

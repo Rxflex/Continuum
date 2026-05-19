@@ -32,4 +32,4 @@ adheres to [Semantic Versioning](https://semver.org/).
 - Unit and end-to-end test suites, and a GitHub Actions CI pipeline (fmt,
   clippy, build, test on Linux and Windows).
 
-[Unreleased]: https://github.com/Rxflex/Continuum/commits/main
+[Unreleased]: https://github.com/redstone-md/continuum/commits/main

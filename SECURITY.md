@@ -3,7 +3,7 @@
 ## Reporting a vulnerability
 
 Please report security issues privately — do **not** open a public issue.
-Use GitHub's [private security advisory](https://github.com/Rxflex/Continuum/security/advisories/new)
+Use GitHub's [private security advisory](https://github.com/redstone-md/continuum/security/advisories/new)
 form. We aim to acknowledge a report within a few days and will keep you
 informed as we work on a fix.
 
