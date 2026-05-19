@@ -210,6 +210,10 @@ async fn shutdown_signal() {
 /// connections rather than spawning unbounded tasks.
 const MAX_CONNECTIONS: usize = 128;
 
+/// A peer must complete the handshake within this window or be dropped, so a
+/// connection that never sends anything cannot hold a slot indefinitely.
+const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
+
 fn generate_token() -> String {
     use rand::distributions::Alphanumeric;
     use rand::Rng;
@@ -280,9 +284,15 @@ async fn handle_connection(stream: TcpStream, daemon: &Arc<Daemon>) -> Result<()
     let (read_half, mut write_half) = stream.into_split();
     let mut reader = BufReader::new(read_half);
 
-    let line = match read_line(&mut reader).await? {
-        Some(l) => l,
-        None => return Ok(()),
+    // A peer that connects but never sends a handshake must not hold its slot.
+    let line = match tokio::time::timeout(HANDSHAKE_TIMEOUT, read_line(&mut reader)).await {
+        Ok(Ok(Some(line))) => line,
+        Ok(Ok(None)) => return Ok(()),
+        Ok(Err(e)) => return Err(e.into()),
+        Err(_) => {
+            tracing::debug!("handshake timed out");
+            return Ok(());
+        }
     };
     let hs: Handshake = serde_json::from_str(line.trim()).context("parse handshake")?;
     let ok = hs.protocol_version == PROTOCOL_VERSION && hs.token == daemon.token;
