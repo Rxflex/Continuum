@@ -42,3 +42,17 @@ release binaries.
 > **Note.** The release assets must be publicly downloadable for `npx` to fetch
 > them, so npm publishing is only meaningful once the repository (and therefore
 > its releases) is public.
+
+## Installing without any registry account
+
+Registry publishing is optional. Every release also carries the packed npm
+wrapper (`continuum-mcp-X.Y.Z.tgz`), so the server can be run straight from the
+release asset — no npm account, no `npm publish`:
+
+```
+npx https://github.com/Rxflex/Continuum/releases/download/vX.Y.Z/continuum-mcp-X.Y.Z.tgz
+```
+
+And `cargo install --git https://github.com/Rxflex/Continuum continuum-adapter`
+installs from the repository with no registry at all. Both need only the
+repository (and its releases) to be reachable by the user.

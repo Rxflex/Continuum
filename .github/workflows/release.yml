@@ -53,3 +53,18 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: dist/*
+
+  npm-package:
+    name: npm wrapper tarball
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      # The packed tarball lets `npx <release-asset-url>` run Continuum with no
+      # npm-registry account involved at all.
+      - name: Pack the npm wrapper
+        run: npm pack
+        working-directory: npm
+      - name: Attach to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: npm/*.tgz
