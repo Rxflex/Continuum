@@ -5,6 +5,7 @@ members = [
     "crates/continuum-transport",
     "crates/continuum-graph",
     "crates/continuum-memory",
+    "crates/continuum-search",
     "crates/continuum-indexer",
     "crates/continuum-daemon",
     "crates/continuum-adapter",
@@ -34,6 +35,7 @@ continuum-core = { path = "crates/continuum-core" }
 continuum-transport = { path = "crates/continuum-transport" }
 continuum-graph = { path = "crates/continuum-graph" }
 continuum-memory = { path = "crates/continuum-memory" }
+continuum-search = { path = "crates/continuum-search" }
 continuum-indexer = { path = "crates/continuum-indexer" }
 
 [profile.release]

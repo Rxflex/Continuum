@@ -7,6 +7,7 @@ license.workspace = true
 [dependencies]
 continuum-core.workspace = true
 continuum-graph.workspace = true
+continuum-search.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 walkdir = "2"

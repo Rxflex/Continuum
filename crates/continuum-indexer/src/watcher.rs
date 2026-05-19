@@ -7,6 +7,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use continuum_graph::CodeGraph;
+use continuum_search::SemanticEngine;
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use tokio::sync::{mpsc, RwLock};
 
@@ -18,6 +19,7 @@ const DEBOUNCE: Duration = Duration::from_millis(300);
 pub fn start_watcher(
     root: PathBuf,
     graph: Arc<RwLock<CodeGraph>>,
+    semantic: Option<Arc<SemanticEngine>>,
 ) -> notify::Result<RecommendedWatcher> {
     let (tx, mut rx) = mpsc::unbounded_channel::<PathBuf>();
 
@@ -48,7 +50,7 @@ pub fn start_watcher(
             }
 
             for path in &batch {
-                crate::reindex_one(&root, path, &graph).await;
+                crate::reindex_one(&root, path, &graph, &semantic).await;
             }
             let mut guard = graph.write().await;
             continuum_graph::resolver::resolve(&mut guard);

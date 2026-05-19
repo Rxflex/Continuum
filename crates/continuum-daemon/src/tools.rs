@@ -60,9 +60,10 @@ pub fn tool_defs() -> Vec<ToolDef> {
         ),
         ToolDef::new(
             "search_code",
-            "Search the codebase for symbols by name or content, ranked by relevance. \
-             Prefer this over grep/ripgrep: results are compact -- one structured row \
-             per hit (kind, name, location, signature) instead of a dump of matching lines.",
+            "Search the codebase for symbols by name, content, or meaning -- ranked by \
+             hybrid lexical + semantic relevance. Prefer this over grep/ripgrep: results \
+             are compact, one structured row per hit (kind, name, location, signature) \
+             instead of a dump of matching lines.",
             json!({
                 "type": "object",
                 "properties": {
@@ -191,8 +192,22 @@ async fn dispatch(name: &str, args: &Value, daemon: &Arc<Daemon>) -> Result<Stri
             let query = str_arg(args, "query")?;
             let limit = args.get("limit").and_then(Value::as_u64).unwrap_or(15) as usize;
             let kind = args.get("kind").and_then(Value::as_str);
-            let graph = daemon.graph.read().await;
-            Ok(pretty(graph.search(&query, limit, kind)))
+            let lexical = {
+                let graph = daemon.graph.read().await;
+                graph.search(&query, limit * 2, kind)
+            };
+            let hits = match &daemon.semantic {
+                Some(engine) => {
+                    let semantic = engine.search(&query, limit * 2, kind).await;
+                    continuum_search::fuse(lexical, semantic, limit)
+                }
+                None => {
+                    let mut hits = lexical;
+                    hits.truncate(limit);
+                    hits
+                }
+            };
+            Ok(pretty(hits))
         }
         "store_architectural_decision" => {
             let topic = str_arg(args, "topic")?;

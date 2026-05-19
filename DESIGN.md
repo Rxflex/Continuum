@@ -234,28 +234,39 @@ requests.
 1. **Transport + IPC** — TCP loopback, lockfile, daemon lifecycle, handshake, stdio
    proxy. A daemon and adapter that can round-trip a ping.
 2. **Graph** — `CodeGraph`, node/edge types, `RwLock` access.
-3. **Indexer** — FS watcher, debouncer, tree-sitter integration, `.scm` queries,
-   feeding the graph.
+3. **Indexer** — FS watcher, debouncer, tree-sitter AST traversal, feeding the graph.
 4. **Memory** — SQLite writer actor, the three tables.
-5. **MCP Tools** — wire the 10 tools to graph + memory.
+5. **MCP Tools** — wire the tools to graph + memory.
 6. **Resolver** — heuristic cross-file resolution as a background task.
+7. **Semantic search** — `continuum-search`: embeddings + vector index, fused
+   into `search_code`.
 
 ---
 
-## 10. Future (v2 — out of scope for v1)
+## 10. Semantic Search (`continuum-search`)
 
-- **RAG / semantic retrieval.** The graph gives *exact* structural retrieval; RAG adds
-  *fuzzy* semantic retrieval. Planned use: semantic search over `lore`/ADRs ("find
-  decisions about auth") and code search when the symbol name is unknown. New tools:
-  `search_lore_semantic`, `search_code_semantic`.
-  - **Storage:** `sqlite-vec` extension → vectors stay in the same embedded DB.
-  - **Embedder behind a trait** — local (ONNX MiniLM via `fastembed-rs`/`candle`) or
-    remote API implementations.
-  - **Hooks now so v1 is not blocked:** keep the memory DB schema migration-friendly;
-    let the indexer optionally emit chunk text; ship an `Embedder` trait stub.
-  - *Not in v1:* separate subsystem, model dependency, RAM and latency cost.
+`search_code` is **hybrid**: it fuses the graph's lexical BM25 ranking with
+embedding-based semantic search, so an agent finds code by meaning as well as by
+name. Implemented in the `continuum-search` crate.
+
+- **Embeddings** — model2vec static embeddings (`minishlab/potion-base-8M`, ~30 MB):
+  a distilled token→vector table with mean pooling. Pure Rust, no ONNX runtime, so
+  it builds on any toolchain and adds no native-library dependency. Downloaded once
+  from HuggingFace; if loading fails the daemon degrades to lexical-only search.
+- **Vector index** — in memory, brute-force cosine. Symbol counts are modest
+  (thousands), so a flat scan is sub-millisecond and needs no ANN structure.
+- **Fusion** — reciprocal rank fusion (RRF) merges the lexical and semantic lists.
+  RRF needs no score calibration between the two rankers, only their ranks.
+- **Sync** — the indexer embeds each file's symbols alongside every graph update.
+
+## 11. Future
+
 - **Named pipe / UDS transport** — second `Transport` impl, OS-ACL security.
 - **SQLite read pool** — concurrent readers separate from the writer actor.
 - **Handshake-assigned session id** — replaces self-reported `agent_id`.
 - **Graph snapshotting** — persist the graph on idle shutdown for fast warm restart
   without a full re-index.
+- **Background model load** — load the embedding model off the startup path so the
+  first-ever run does not block on the model download.
+- **Semantic memory search** — extend embeddings to the `lore` table so agents can
+  find architectural decisions by meaning.

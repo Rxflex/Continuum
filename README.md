@@ -15,10 +15,11 @@ hand off architectural intent to the next without re-deriving context.
 
 - **Live code graph** — tree-sitter parsing of Rust, Python, JavaScript,
   TypeScript and Go, kept in sync by a filesystem watcher.
-- **Code navigation & search** — ranked code search, file outlines, symbol
-  definitions, caller lookup, and local dependency graphs, served straight from
-  the in-memory graph. `search_code` returns one compact row per hit, so an
-  agent spends a fraction of the tokens a raw grep would cost.
+- **Hybrid code search** — `search_code` fuses lexical BM25 ranking with semantic
+  embeddings (a local, pure-Rust model2vec model) via reciprocal rank fusion. One
+  compact row per hit — a token-efficient replacement for grep.
+- **Code navigation** — file outlines, symbol definitions, caller lookup, and
+  local dependency graphs, served from the in-memory code graph.
 - **Cross-agent memory** — architectural decisions, an action-history log of
   agent intents, and an append-only scratchpad for handoffs.
 - **Daemon + thin adapter** — one stateful daemon per workspace; each agent runs
@@ -44,6 +45,10 @@ cargo build --release
 ```
 
 This produces two binaries: `continuum-daemon` and `continuum-adapter`.
+
+On first run the daemon downloads a ~30 MB embedding model from HuggingFace for
+semantic search; if that fails (e.g. offline), search falls back to lexical-only
+ranking and everything else works unchanged.
 
 > **Windows without Visual Studio:** with no MSVC linker available, build against
 > the llvm-mingw toolchain — `rustup target add x86_64-pc-windows-gnullvm`, then
@@ -90,6 +95,7 @@ crates/
   continuum-graph      in-memory code knowledge graph
   continuum-indexer    tree-sitter parsing + filesystem watcher
   continuum-memory     SQLite-backed agent memory
+  continuum-search     semantic search — embeddings + in-memory vector index
   continuum-daemon     the workspace daemon (binary)
   continuum-adapter    the thin MCP adapter (binary)
 ```

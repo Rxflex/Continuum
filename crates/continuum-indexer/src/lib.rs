@@ -1,5 +1,6 @@
 //! The indexer: filesystem watching plus tree-sitter parsing that keeps the
-//! [`continuum_graph::CodeGraph`] in sync with files on disk.
+//! [`continuum_graph::CodeGraph`] — and, when enabled, the semantic search
+//! index — in sync with files on disk.
 
 mod languages;
 mod parser;
@@ -9,6 +10,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use continuum_graph::CodeGraph;
+use continuum_search::{SemanticEngine, SymbolDoc};
 use tokio::sync::RwLock;
 
 use languages::Lang;
@@ -28,13 +30,26 @@ const SKIP_DIRS: &[&str] = &[
 ];
 
 /// Full one-shot index of a workspace. Returns the number of files indexed.
-pub async fn index_workspace(root: &Path, graph: Arc<RwLock<CodeGraph>>) -> usize {
+///
+/// `semantic` is the optional embedding engine; when present, every file's
+/// symbols are embedded alongside the graph update.
+pub async fn index_workspace(
+    root: &Path,
+    graph: Arc<RwLock<CodeGraph>>,
+    semantic: Option<Arc<SemanticEngine>>,
+) -> usize {
     let mut count = 0;
     for abs in collect_source_files(root) {
         // Parsing is CPU-bound and lock-free; only the graph update takes the lock.
         if let Some((rel, parsed)) = parse_path(root, &abs) {
-            let mut guard = graph.write().await;
-            guard.replace_file(&rel, parsed.file_node, parsed.symbols);
+            let docs = symbol_docs(&parsed);
+            {
+                let mut guard = graph.write().await;
+                guard.replace_file(&rel, parsed.file_node, parsed.symbols);
+            }
+            if let Some(engine) = &semantic {
+                engine.index_file(&rel, docs).await;
+            }
             count += 1;
         }
     }
@@ -44,7 +59,12 @@ pub async fn index_workspace(root: &Path, graph: Arc<RwLock<CodeGraph>>) -> usiz
 }
 
 /// Re-index a single path after a filesystem change (or drop it if deleted).
-pub(crate) async fn reindex_one(root: &Path, abs: &Path, graph: &Arc<RwLock<CodeGraph>>) {
+pub(crate) async fn reindex_one(
+    root: &Path,
+    abs: &Path,
+    graph: &Arc<RwLock<CodeGraph>>,
+    semantic: &Option<Arc<SemanticEngine>>,
+) {
     let supported = abs
         .extension()
         .and_then(|e| e.to_str())
@@ -56,15 +76,39 @@ pub(crate) async fn reindex_one(root: &Path, abs: &Path, graph: &Arc<RwLock<Code
     let rel = rel_path(root, abs);
     if abs.is_file() {
         if let Some((_, parsed)) = parse_path(root, abs) {
-            let mut guard = graph.write().await;
-            guard.replace_file(&rel, parsed.file_node, parsed.symbols);
+            let docs = symbol_docs(&parsed);
+            {
+                let mut guard = graph.write().await;
+                guard.replace_file(&rel, parsed.file_node, parsed.symbols);
+            }
+            if let Some(engine) = semantic {
+                engine.index_file(&rel, docs).await;
+            }
             tracing::debug!("re-indexed {rel}");
         }
     } else {
-        let mut guard = graph.write().await;
-        guard.remove_file(&rel);
+        graph.write().await.remove_file(&rel);
+        if let Some(engine) = semantic {
+            engine.remove_file(&rel).await;
+        }
         tracing::debug!("dropped {rel}");
     }
+}
+
+/// Build embedding documents from a parsed file's symbols.
+fn symbol_docs(parsed: &parser::ParsedFile) -> Vec<SymbolDoc> {
+    parsed
+        .symbols
+        .iter()
+        .map(|node| SymbolDoc {
+            name: node.name.clone(),
+            kind: node.kind.as_str().to_string(),
+            path: node.path.clone(),
+            line: node.start_line,
+            signature: node.signature.clone(),
+            embed_text: format!("{} {}", node.name, node.signature),
+        })
+        .collect()
 }
 
 fn parse_path(root: &Path, abs: &Path) -> Option<(String, parser::ParsedFile)> {

@@ -1,0 +1,12 @@
+[package]
+name = "continuum-search"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+continuum-core.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+anyhow.workspace = true
+model2vec-rs = "0.2.0"

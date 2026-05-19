@@ -13,6 +13,7 @@ continuum-core.workspace = true
 continuum-transport.workspace = true
 continuum-graph.workspace = true
 continuum-memory.workspace = true
+continuum-search.workspace = true
 continuum-indexer.workspace = true
 serde.workspace = true
 serde_json.workspace = true

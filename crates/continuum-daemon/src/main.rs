@@ -40,6 +40,8 @@ pub(crate) struct Daemon {
     pub(crate) token: String,
     pub(crate) graph: Arc<RwLock<CodeGraph>>,
     pub(crate) memory: Memory,
+    /// Semantic search engine; `None` when the embedding model is unavailable.
+    pub(crate) semantic: Option<Arc<continuum_search::SemanticEngine>>,
     pub(crate) conns: AtomicUsize,
     pub(crate) last_activity: Mutex<Instant>,
 }
@@ -66,18 +68,37 @@ async fn main() -> Result<()> {
     let memory = Memory::open(&ws.db_path()).map_err(|e| anyhow::anyhow!("open memory: {e}"))?;
     let graph = Arc::new(RwLock::new(CodeGraph::new()));
 
+    // Load the embedding model for semantic search. On failure (e.g. offline on
+    // first run) the daemon degrades gracefully to lexical-only search.
+    let semantic = match tokio::task::spawn_blocking(continuum_search::Embedder::load).await {
+        Ok(Ok(embedder)) => {
+            tracing::info!("embedding model ready; semantic search enabled");
+            Some(Arc::new(continuum_search::SemanticEngine::new(embedder)))
+        }
+        Ok(Err(e)) => {
+            tracing::warn!("semantic search disabled (model load failed): {e}");
+            None
+        }
+        Err(e) => {
+            tracing::warn!("semantic search disabled (load task panicked): {e}");
+            None
+        }
+    };
+
     // Index in the background so the daemon serves immediately; navigation
     // tools return progressively richer results as the scan completes.
     {
         let graph = graph.clone();
+        let semantic = semantic.clone();
         let root = ws.root_path();
         tokio::spawn(async move {
-            let n = continuum_indexer::index_workspace(&root, graph).await;
+            let n = continuum_indexer::index_workspace(&root, graph, semantic).await;
             tracing::info!("initial index complete: {n} files");
         });
     }
-    let _watcher = continuum_indexer::start_watcher(ws.root_path(), graph.clone())
-        .map_err(|e| anyhow::anyhow!("start file watcher: {e}"))?;
+    let _watcher =
+        continuum_indexer::start_watcher(ws.root_path(), graph.clone(), semantic.clone())
+            .map_err(|e| anyhow::anyhow!("start file watcher: {e}"))?;
 
     let listener = TcpListener::bind("127.0.0.1:0").await.context("bind IPC socket")?;
     let addr = listener.local_addr()?;
@@ -95,6 +116,7 @@ async fn main() -> Result<()> {
         token,
         graph,
         memory,
+        semantic,
         conns: AtomicUsize::new(0),
         last_activity: Mutex::new(Instant::now()),
     });
