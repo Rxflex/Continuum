@@ -50,9 +50,9 @@ wrapper (`continuum-mcp-X.Y.Z.tgz`), so the server can be run straight from the
 release asset — no npm account, no `npm publish`:
 
 ```
-npx https://github.com/redstone-md/continuum/releases/download/vX.Y.Z/continuum-mcp-X.Y.Z.tgz
+npx https://github.com/redstone-md/Continuum/releases/download/vX.Y.Z/continuum-mcp-X.Y.Z.tgz
 ```
 
-And `cargo install --git https://github.com/redstone-md/continuum continuum-adapter`
+And `cargo install --git https://github.com/redstone-md/Continuum continuum-adapter`
 installs from the repository with no registry at all. Both need only the
 repository (and its releases) to be reachable by the user.

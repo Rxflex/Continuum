@@ -6,9 +6,9 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/redstone-md/continuum.git"
+    "url": "git+https://github.com/redstone-md/Continuum.git"
   },
-  "homepage": "https://github.com/redstone-md/continuum",
+  "homepage": "https://github.com/redstone-md/Continuum",
   "bin": {
     "continuum-mcp": "bin/continuum.js"
   },

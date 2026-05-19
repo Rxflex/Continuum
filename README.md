@@ -55,7 +55,7 @@ Linux x64, macOS x64/arm64, and Windows x64 are supported.
 ### Prebuilt binaries
 
 Download `continuum-daemon` and `continuum-adapter` for your platform from the
-[latest release](https://github.com/redstone-md/continuum/releases) and keep them in
+[latest release](https://github.com/redstone-md/Continuum/releases) and keep them in
 the same directory.
 
 ### From source
@@ -113,7 +113,7 @@ register it with your own MCP host. Follow the three steps.
 With a Rust toolchain — one command, nothing to clone:
 
 ```
-cargo install --git https://github.com/redstone-md/continuum continuum-adapter continuum-daemon
+cargo install --git https://github.com/redstone-md/Continuum continuum-adapter continuum-daemon
 ```
 
 This places `continuum-adapter` and `continuum-daemon` on your `PATH`
