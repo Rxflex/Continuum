@@ -19,6 +19,7 @@ pub struct SymbolDoc {
     pub path: String,
     pub line: usize,
     pub signature: String,
+    pub is_test: bool,
     /// The text actually embedded (typically `name + signature`).
     pub embed_text: String,
 }
@@ -29,6 +30,7 @@ struct Entry {
     path: String,
     line: usize,
     signature: String,
+    is_test: bool,
     vector: Vec<f32>,
 }
 
@@ -58,6 +60,7 @@ impl SemanticIndex {
                 path: e.path.clone(),
                 line: e.line,
                 signature: e.signature.clone(),
+                is_test: e.is_test,
                 score,
             })
             .collect()
@@ -121,6 +124,7 @@ impl SemanticEngine {
                 path: doc.path,
                 line: doc.line,
                 signature: doc.signature,
+                is_test: doc.is_test,
                 vector: normalize(vector),
             })
             .collect();
@@ -201,6 +205,7 @@ mod tests {
                     path: "f.rs".to_string(),
                     line: 1,
                     signature: String::new(),
+                    is_test: false,
                     vector: normalize(vec![1.0, 0.1, 0.0]),
                 },
                 Entry {
@@ -209,6 +214,7 @@ mod tests {
                     path: "f.rs".to_string(),
                     line: 2,
                     signature: String::new(),
+                    is_test: false,
                     vector: normalize(vec![0.0, 0.0, 1.0]),
                 },
             ],

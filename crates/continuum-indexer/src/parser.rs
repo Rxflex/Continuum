@@ -24,6 +24,7 @@ struct RawSym {
     end_line: usize,
     signature: String,
     source: String,
+    is_test: bool,
 }
 
 struct RawCall {
@@ -44,7 +45,7 @@ pub fn parse(rel_path: &str, source: &str, lang: Lang) -> Option<ParsedFile> {
 
     let mut syms: Vec<RawSym> = Vec::new();
     let mut calls: Vec<RawCall> = Vec::new();
-    walk(tree.root_node(), src, lang, 0, &mut syms, &mut calls);
+    walk(tree.root_node(), src, lang, 0, false, &mut syms, &mut calls);
 
     let mut nodes: Vec<GraphNode> = syms
         .iter()
@@ -60,6 +61,7 @@ pub fn parse(rel_path: &str, source: &str, lang: Lang) -> Option<ParsedFile> {
             source: s.source.clone(),
             docstring: None,
             calls: Vec::new(),
+            is_test: s.is_test,
         })
         .collect();
 
@@ -100,12 +102,19 @@ fn walk(
     src: &[u8],
     lang: Lang,
     depth: usize,
+    in_test: bool,
     syms: &mut Vec<RawSym>,
     calls: &mut Vec<RawCall>,
 ) {
     if depth >= MAX_AST_DEPTH {
         return;
     }
+    // Crossing a Rust `#[cfg(test)]` module or `#[test]` function marks the
+    // whole subtree as test code.
+    let in_test = in_test
+        || (lang == Lang::Rust
+            && matches!(node.kind(), "mod_item" | "function_item")
+            && rust_has_test_attr(node, src));
     if let Some((kind, name_field)) = def_spec(lang, node.kind()) {
         if let Some(name_node) = node.child_by_field_name(name_field) {
             if let Ok(name) = name_node.utf8_text(src) {
@@ -120,6 +129,7 @@ fn walk(
                     end_line: node.end_position().row + 1,
                     signature,
                     source,
+                    is_test: in_test || name_is_test(lang, kind, name),
                 });
             }
         }
@@ -134,7 +144,35 @@ fn walk(
     let mut cursor = node.walk();
     let children: Vec<Node> = node.named_children(&mut cursor).collect();
     for child in children {
-        walk(child, src, lang, depth + 1, syms, calls);
+        walk(child, src, lang, depth + 1, in_test, syms, calls);
+    }
+}
+
+/// True if a Rust item carries a `#[test]` or `#[cfg(test)]` attribute, found
+/// among the `attribute_item` siblings that precede it.
+fn rust_has_test_attr(node: Node, src: &[u8]) -> bool {
+    let mut sibling = node.prev_named_sibling();
+    while let Some(s) = sibling {
+        match s.kind() {
+            "attribute_item" => {
+                if s.utf8_text(src).is_ok_and(|t| t.contains("test")) {
+                    return true;
+                }
+                sibling = s.prev_named_sibling();
+            }
+            "line_comment" | "block_comment" => sibling = s.prev_named_sibling(),
+            _ => return false,
+        }
+    }
+    false
+}
+
+/// Per-language test-name conventions. Rust is covered by attributes instead.
+fn name_is_test(lang: Lang, kind: NodeKind, name: &str) -> bool {
+    match lang {
+        Lang::Python => kind == NodeKind::Function && name.starts_with("test_"),
+        Lang::Go => kind == NodeKind::Function && name.starts_with("Test") && name.len() > 4,
+        _ => false,
     }
 }
 

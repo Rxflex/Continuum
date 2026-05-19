@@ -106,9 +106,9 @@ async fn main() -> Result<()> {
         continuum_indexer::start_watcher(ws.root_path(), graph.clone(), semantic.clone())
             .map_err(|e| anyhow::anyhow!("start file watcher: {e}"))?;
 
-    // Load the embedding model off the startup path; back-fill the semantic
-    // index once it is ready.
-    spawn_model_load(semantic.clone(), graph.clone());
+    // Load the embedding model off the startup path; it re-indexes to fill the
+    // semantic index once it is ready.
+    spawn_model_load(semantic.clone(), graph.clone(), ws.root_path());
 
     let listener = TcpListener::bind("127.0.0.1:0")
         .await
@@ -242,34 +242,20 @@ fn spawn_idle_watch(daemon: Arc<Daemon>, ws: Workspace, idle: Duration) {
     });
 }
 
-/// Load the embedding model off the startup path. On success, install it into
-/// the semantic engine and back-fill the index from whatever the graph already
-/// holds; on failure the daemon stays on lexical-only search.
+/// Load the embedding model off the startup path. On success, activate the
+/// semantic engine and re-index so it embeds every symbol through the same path
+/// the indexer uses; on failure the daemon stays on lexical-only search.
 fn spawn_model_load(
     semantic: Arc<continuum_search::SemanticEngine>,
     graph: Arc<RwLock<CodeGraph>>,
+    root: PathBuf,
 ) {
     tokio::spawn(async move {
         match tokio::task::spawn_blocking(continuum_search::Embedder::load).await {
             Ok(Ok(embedder)) => {
                 semantic.activate(embedder);
-                let outlines = graph.read().await.all_outlines();
-                for outline in outlines {
-                    let docs: Vec<continuum_search::SymbolDoc> = outline
-                        .items
-                        .iter()
-                        .map(|item| continuum_search::SymbolDoc {
-                            name: item.name.clone(),
-                            kind: item.kind.clone(),
-                            path: outline.path.clone(),
-                            line: item.start_line,
-                            signature: item.signature.clone(),
-                            embed_text: format!("{} {}", item.name, item.signature),
-                        })
-                        .collect();
-                    semantic.index_file(&outline.path, docs).await;
-                }
-                tracing::info!("embedding model ready; semantic search enabled");
+                let n = continuum_indexer::index_workspace(&root, graph, semantic).await;
+                tracing::info!("embedding model ready; semantic search enabled ({n} files)");
             }
             Ok(Err(e)) => tracing::warn!("semantic search disabled (model load failed): {e}"),
             Err(e) => tracing::warn!("semantic search disabled (load task panicked): {e}"),

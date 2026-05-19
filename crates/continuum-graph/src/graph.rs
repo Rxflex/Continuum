@@ -101,15 +101,6 @@ impl CodeGraph {
         })
     }
 
-    /// Outlines of every indexed file. Used to back-fill the semantic index
-    /// once the embedding model finishes loading.
-    pub fn all_outlines(&self) -> Vec<FileOutline> {
-        self.by_file
-            .keys()
-            .filter_map(|path| self.file_outline(path))
-            .collect()
-    }
-
     /// Find a symbol by name. `file_hint` (a substring of the path) breaks ties.
     pub fn find_symbol(&self, name: &str, file_hint: Option<&str>) -> Option<SymbolDefinition> {
         let candidates = self.by_name.get(name)?;
@@ -169,17 +160,16 @@ impl CodeGraph {
         let mut children = Vec::new();
         if depth > 0 && !stack.contains(&idx) {
             stack.push(idx);
+            let mut seen: HashSet<NodeIndex> = HashSet::new();
             for call in &node.calls {
-                match self.unique_symbol(&call.name) {
-                    Some(callee) => children.push(self.build_dep(callee, depth - 1, stack)),
-                    None => children.push(DependencyNode {
-                        symbol: call.name.clone(),
-                        kind: "unresolved".to_string(),
-                        path: String::new(),
-                        line: call.line,
-                        resolved: false,
-                        children: Vec::new(),
-                    }),
+                // Only follow calls that resolve to a known symbol. Unresolved
+                // calls -- stdlib methods, macros, `.iter()`/`.clone()` and the
+                // like -- are noise, not dependencies, and are omitted so the
+                // tree stays small and meaningful.
+                if let Some(callee) = self.unique_symbol(&call.name) {
+                    if seen.insert(callee) {
+                        children.push(self.build_dep(callee, depth - 1, stack));
+                    }
                 }
             }
             stack.pop();
@@ -338,6 +328,10 @@ impl CodeGraph {
                 score += idf * (tf * (K1 + 1.0)) / (tf + K1 * (1.0 - B + B * dl / avg_len));
             }
             if score > 0.0 {
+                // De-prioritize test code so it never buries real code.
+                if self.graph[idx].is_test {
+                    score *= 0.25;
+                }
                 scored.push((score, idx));
             }
         }
@@ -354,6 +348,7 @@ impl CodeGraph {
                     path: node.path.clone(),
                     line: node.start_line,
                     signature: node.signature.clone(),
+                    is_test: node.is_test,
                     score,
                 }
             })
@@ -502,6 +497,7 @@ mod tests {
             source: src.to_string(),
             docstring: None,
             calls: Vec::new(),
+            is_test: false,
         }
     }
 

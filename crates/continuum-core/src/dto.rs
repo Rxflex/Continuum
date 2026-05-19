@@ -65,6 +65,9 @@ pub struct SearchHit {
     pub path: String,
     pub line: usize,
     pub signature: String,
+    /// True if the hit is test code — de-prioritized in ranking.
+    #[serde(default)]
+    pub is_test: bool,
     pub score: f32,
 }
 

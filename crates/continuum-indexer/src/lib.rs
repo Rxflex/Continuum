@@ -110,9 +110,19 @@ fn symbol_docs(parsed: &parser::ParsedFile) -> Vec<SymbolDoc> {
             path: node.path.clone(),
             line: node.start_line,
             signature: node.signature.clone(),
-            embed_text: format!("{} {}", node.name, node.signature),
+            is_test: node.is_test,
+            embed_text: embedding_text(node),
         })
         .collect()
+}
+
+/// Text embedded for semantic search: the symbol name plus a snippet of its
+/// body, so the model matches on what the code *does*, not only on how it is
+/// named. The body is capped so a huge function cannot dilute the vector.
+fn embedding_text(node: &continuum_graph::GraphNode) -> String {
+    const BODY_BUDGET: usize = 600;
+    let body: String = node.source.chars().take(BODY_BUDGET).collect();
+    format!("{} {}", node.name, body)
 }
 
 /// Largest file indexed, in bytes — override with `CONTINUUM_MAX_FILE_KIB`.

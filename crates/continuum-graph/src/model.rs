@@ -57,6 +57,10 @@ pub struct GraphNode {
     pub source: String,
     pub docstring: Option<String>,
     pub calls: Vec<CallSite>,
+    /// True for test code (Rust `#[cfg(test)]` items, `test_*` / `Test*`
+    /// functions). De-prioritized in search so it never buries real code.
+    #[serde(default)]
+    pub is_test: bool,
 }
 
 impl GraphNode {
@@ -74,6 +78,7 @@ impl GraphNode {
             source: String::new(),
             docstring: None,
             calls: Vec::new(),
+            is_test: false,
         }
     }
 }

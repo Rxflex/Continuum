@@ -26,6 +26,12 @@ pub fn fuse(lexical: Vec<SearchHit>, semantic: Vec<SearchHit>, limit: usize) -> 
     }
 
     let mut ranked: Vec<(f32, SearchHit)> = merged.into_values().collect();
+    // De-prioritize test code so a real implementation ranks above its tests.
+    for (score, hit) in &mut ranked {
+        if hit.is_test {
+            *score *= 0.3;
+        }
+    }
     ranked.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
     ranked.truncate(limit);
     ranked
@@ -48,6 +54,7 @@ mod tests {
             path: path.to_string(),
             line,
             signature: String::new(),
+            is_test: false,
             score: 0.0,
         }
     }
