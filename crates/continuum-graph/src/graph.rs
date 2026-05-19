@@ -721,4 +721,19 @@ mod tests {
         assert!(g.file_outline("keep.rs").is_some());
         assert!(g.file_outline("drop.rs").is_none());
     }
+
+    proptest::proptest! {
+        /// Tokenizing and searching arbitrary text must never panic.
+        #[test]
+        fn tokenize_and_search_never_panic(text in ".{0,2000}") {
+            let _ = tokenize(&text);
+            let mut g = CodeGraph::new();
+            g.replace_file(
+                "f.rs",
+                GraphNode::file("f.rs", "rust"),
+                vec![sym("s", "f.rs", NodeKind::Function, 1, "sig", &text)],
+            );
+            let _ = g.search(&text, 10, None);
+        }
+    }
 }

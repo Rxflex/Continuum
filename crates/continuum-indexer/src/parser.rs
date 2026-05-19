@@ -281,4 +281,23 @@ mod tests {
         let src = format!("fn f() {{ {} }}", "if true {".repeat(9000)) + &"}".repeat(9000);
         let _ = parse("p.rs", &src, Lang::Rust);
     }
+
+    proptest::proptest! {
+        #![proptest_config(proptest::prelude::ProptestConfig::with_cases(64))]
+
+        /// Parsing arbitrary input — including control characters and garbage —
+        /// must never panic, for any language.
+        #[test]
+        fn parse_never_panics_on_arbitrary_input(src in ".{0,2000}") {
+            for lang in [
+                Lang::Rust,
+                Lang::Python,
+                Lang::JavaScript,
+                Lang::TypeScript,
+                Lang::Go,
+            ] {
+                let _ = parse("fuzz", &src, lang);
+            }
+        }
+    }
 }

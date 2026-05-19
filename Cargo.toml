@@ -30,6 +30,7 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 rand = "0.8"
 fs2 = "0.4"
 clap = { version = "4", features = ["derive", "env"] }
+proptest = "1"
 
 continuum-core = { path = "crates/continuum-core" }
 continuum-transport = { path = "crates/continuum-transport" }
