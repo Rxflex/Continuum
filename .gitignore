@@ -1,0 +1,7 @@
+/target
+.continuum/
+*.log
+
+# Machine-specific cargo config (e.g. a non-default build target)
+.cargo/
+

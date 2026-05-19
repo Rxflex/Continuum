@@ -1,0 +1,25 @@
+[package]
+name = "continuum-daemon"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "continuum-daemon"
+path = "src/main.rs"
+
+[dependencies]
+continuum-core.workspace = true
+continuum-transport.workspace = true
+continuum-graph.workspace = true
+continuum-memory.workspace = true
+continuum-indexer.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+anyhow.workspace = true
+clap.workspace = true
+fs2.workspace = true
+rand.workspace = true

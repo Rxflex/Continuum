@@ -1,0 +1,12 @@
+[package]
+name = "continuum-memory"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+continuum-core.workspace = true
+rusqlite.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tracing.workspace = true

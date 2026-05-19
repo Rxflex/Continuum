@@ -1,0 +1,41 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/continuum-core",
+    "crates/continuum-transport",
+    "crates/continuum-graph",
+    "crates/continuum-memory",
+    "crates/continuum-indexer",
+    "crates/continuum-daemon",
+    "crates/continuum-adapter",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/Rxflex/Continuum"
+
+[workspace.dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "net", "io-util", "io-std", "macros", "sync", "time"] }
+thiserror = "1.0"
+anyhow = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+petgraph = "0.6"
+rusqlite = { version = "0.32", features = ["bundled"] }
+rand = "0.8"
+fs2 = "0.4"
+clap = { version = "4", features = ["derive"] }
+
+continuum-core = { path = "crates/continuum-core" }
+continuum-transport = { path = "crates/continuum-transport" }
+continuum-graph = { path = "crates/continuum-graph" }
+continuum-memory = { path = "crates/continuum-memory" }
+continuum-indexer = { path = "crates/continuum-indexer" }
+
+[profile.release]
+opt-level = 3
+lto = "thin"
