@@ -4,6 +4,7 @@
 
 mod languages;
 mod parser;
+mod textsearch;
 mod watcher;
 
 use std::path::{Path, PathBuf};
@@ -15,6 +16,7 @@ use tokio::sync::RwLock;
 
 use languages::Lang;
 
+pub use textsearch::search_text;
 pub use watcher::start_watcher;
 
 /// Directory names never descended into during indexing.
@@ -156,18 +158,20 @@ fn rel_path(root: &Path, abs: &Path) -> String {
         .replace('\\', "/")
 }
 
+/// Whether a walked entry is a directory the indexer never descends into.
+fn is_skipped_dir(entry: &walkdir::DirEntry) -> bool {
+    entry.file_type().is_dir()
+        && entry
+            .file_name()
+            .to_str()
+            .map(|n| SKIP_DIRS.contains(&n))
+            .unwrap_or(false)
+}
+
 fn collect_source_files(root: &Path) -> Vec<PathBuf> {
     walkdir::WalkDir::new(root)
         .into_iter()
-        .filter_entry(|entry| {
-            let is_skipped_dir = entry.file_type().is_dir()
-                && entry
-                    .file_name()
-                    .to_str()
-                    .map(|n| SKIP_DIRS.contains(&n))
-                    .unwrap_or(false);
-            !is_skipped_dir
-        })
+        .filter_entry(|entry| !is_skipped_dir(entry))
         .filter_map(|e| e.ok())
         .filter(|e| e.file_type().is_file())
         .map(|e| e.path().to_path_buf())

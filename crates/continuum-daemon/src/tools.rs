@@ -78,6 +78,27 @@ pub fn tool_defs() -> Vec<ToolDef> {
             }),
         ),
         ToolDef::new(
+            "find_text",
+            "Search the workspace for a literal string (or regex) across every file, \
+             including non-code files. Returns matching lines with path and line \
+             number. Use this for exact text -- log strings, config keys, comments -- \
+             that the symbol-scoped search_code does not cover.",
+            json!({
+                "type": "object",
+                "properties": {
+                    "pattern": { "type": "string", "description": "Text to find." },
+                    "regex": {
+                        "type": "boolean",
+                        "default": false,
+                        "description": "Treat the pattern as a regular expression."
+                    },
+                    "ignore_case": { "type": "boolean", "default": false },
+                    "limit": { "type": "integer", "default": 50 }
+                },
+                "required": ["pattern"]
+            }),
+        ),
+        ToolDef::new(
             "store_architectural_decision",
             "Persist a high-level design decision / ADR for future agents.",
             json!({
@@ -221,6 +242,27 @@ async fn dispatch(name: &str, args: &Value, daemon: &Arc<Daemon>) -> Result<Stri
                 hits
             };
             Ok(pretty(hits))
+        }
+        "find_text" => {
+            let pattern = str_arg(args, "pattern")?;
+            let regex = args.get("regex").and_then(Value::as_bool).unwrap_or(false);
+            let ignore_case = args
+                .get("ignore_case")
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
+            let limit = args
+                .get("limit")
+                .and_then(Value::as_u64)
+                .unwrap_or(50)
+                .min(500) as usize;
+            let root = daemon.workspace_root.clone();
+            // The scan is blocking I/O; keep it off the async worker threads.
+            let matches = tokio::task::spawn_blocking(move || {
+                continuum_indexer::search_text(&root, &pattern, limit, regex, ignore_case)
+            })
+            .await
+            .map_err(|e| format!("text search task failed: {e}"))??;
+            Ok(pretty(matches))
         }
         "store_architectural_decision" => {
             let topic = str_arg(args, "topic")?;

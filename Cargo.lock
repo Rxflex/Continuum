@@ -310,6 +310,7 @@ dependencies = [
  "continuum-search",
  "notify",
  "proptest",
+ "regex",
  "tokio",
  "tracing",
  "tree-sitter",

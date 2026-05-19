@@ -50,6 +50,8 @@ pub(crate) struct Daemon {
     pub(crate) last_activity: Mutex<Instant>,
     /// When the daemon started — surfaced as uptime by the `get_stats` tool.
     pub(crate) started_at: Instant,
+    /// Workspace root, scanned by the `find_text` tool.
+    pub(crate) workspace_root: PathBuf,
 }
 
 #[tokio::main]
@@ -135,6 +137,7 @@ async fn main() -> Result<()> {
         conns: AtomicUsize::new(0),
         last_activity: Mutex::new(Instant::now()),
         started_at: Instant::now(),
+        workspace_root: ws.root_path(),
     });
 
     if args.idle_minutes > 0 {

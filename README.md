@@ -89,7 +89,8 @@ agent → adapter → daemon spawn chain. All are optional.
 
 | Tool | Purpose |
 |------|---------|
-| `search_code` | Ranked symbol search — the token-efficient replacement for grep |
+| `search_code` | Ranked symbol search — hybrid lexical + semantic |
+| `find_text` | Literal or regex text search across every file — line-precise grep |
 | `get_file_outline` | File structure — definitions with bodies folded |
 | `get_symbol_definition` | Full source + docstring of a symbol |
 | `find_callers` | Every call site of a symbol |

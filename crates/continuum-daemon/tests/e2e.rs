@@ -123,13 +123,8 @@ fn initialize_and_list_all_tools() {
         .iter()
         .map(|t| t["name"].as_str().unwrap())
         .collect();
-    assert_eq!(names.len(), 12, "expected 12 tools, got {names:?}");
-    for expected in [
-        "search_code",
-        "get_file_outline",
-        "commit_intent",
-        "get_stats",
-    ] {
+    assert_eq!(names.len(), 13, "expected 13 tools, got {names:?}");
+    for expected in ["search_code", "find_text", "commit_intent", "get_stats"] {
         assert!(names.contains(&expected), "missing tool {expected}");
     }
 }
@@ -212,4 +207,28 @@ fn notifications_receive_no_response() {
         json!(7),
         "notification must not consume a response slot"
     );
+}
+
+#[test]
+fn find_text_locates_text_across_files() {
+    let ws = temp_workspace();
+    // A non-code file: find_text must search it even though the indexer ignores it.
+    std::fs::write(
+        ws.join("notes.md"),
+        "intro\nthe special marker lives here\nend\n",
+    )
+    .unwrap();
+    let (_daemon, lock) = start_daemon(&ws);
+    let mut client = Client::connect(&lock);
+
+    let resp = client.request(json!({
+        "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+        "params": { "name": "find_text", "arguments": { "pattern": "special marker" } }
+    }));
+    let text = resp["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(
+        text.contains("notes.md"),
+        "find_text should locate the file: {text}"
+    );
+    assert!(text.contains("special marker"));
 }

@@ -71,6 +71,14 @@ pub struct SearchHit {
     pub score: f32,
 }
 
+/// One line that matched a `find_text` query.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TextMatch {
+    pub path: String,
+    pub line: usize,
+    pub text: String,
+}
+
 /// Coarse graph statistics, useful for diagnostics.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct GraphStats {
