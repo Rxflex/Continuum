@@ -88,8 +88,15 @@ impl Memory {
 
     pub async fn store_decision(&self, topic: String, description: String) -> Result<i64> {
         let (reply, rx) = oneshot::channel();
-        self.send(Command::StoreDecision { topic, description, reply }, rx)
-            .await
+        self.send(
+            Command::StoreDecision {
+                topic,
+                description,
+                reply,
+            },
+            rx,
+        )
+        .await
     }
 
     pub async fn read_guidelines(&self) -> Result<Vec<ArchitecturalDecision>> {
@@ -104,8 +111,16 @@ impl Memory {
         files: Vec<String>,
     ) -> Result<i64> {
         let (reply, rx) = oneshot::channel();
-        self.send(Command::CommitIntent { agent_id, intent, files, reply }, rx)
-            .await
+        self.send(
+            Command::CommitIntent {
+                agent_id,
+                intent,
+                files,
+                reply,
+            },
+            rx,
+        )
+        .await
     }
 
     pub async fn recent_changes(&self, limit: i64) -> Result<Vec<IntentRecord>> {
@@ -115,13 +130,21 @@ impl Memory {
 
     pub async fn write_scratchpad(&self, agent_id: String, message: String) -> Result<i64> {
         let (reply, rx) = oneshot::channel();
-        self.send(Command::WriteScratchpad { agent_id, message, reply }, rx)
-            .await
+        self.send(
+            Command::WriteScratchpad {
+                agent_id,
+                message,
+                reply,
+            },
+            rx,
+        )
+        .await
     }
 
     pub async fn read_scratchpad(&self, limit: i64) -> Result<Vec<ScratchpadEntry>> {
         let (reply, rx) = oneshot::channel();
-        self.send(Command::ReadScratchpad { limit, reply }, rx).await
+        self.send(Command::ReadScratchpad { limit, reply }, rx)
+            .await
     }
 }
 
@@ -146,9 +169,9 @@ impl<T> std::future::Future for SendFuture<T> {
         }
         match std::pin::Pin::new(&mut this.rx).poll(cx) {
             std::task::Poll::Ready(Ok(v)) => std::task::Poll::Ready(v),
-            std::task::Poll::Ready(Err(_)) => std::task::Poll::Ready(Err(
-                ContinuumError::Storage("memory actor dropped reply".into()),
-            )),
+            std::task::Poll::Ready(Err(_)) => std::task::Poll::Ready(Err(ContinuumError::Storage(
+                "memory actor dropped reply".into(),
+            ))),
             std::task::Poll::Pending => std::task::Poll::Pending,
         }
     }
@@ -158,19 +181,32 @@ impl<T> std::future::Future for SendFuture<T> {
 
 fn dispatch(conn: &Connection, counter: &AtomicI64, cmd: Command) {
     match cmd {
-        Command::StoreDecision { topic, description, reply } => {
+        Command::StoreDecision {
+            topic,
+            description,
+            reply,
+        } => {
             let _ = reply.send(db_store_decision(conn, &topic, &description));
         }
         Command::ReadGuidelines { reply } => {
             let _ = reply.send(db_read_guidelines(conn));
         }
-        Command::CommitIntent { agent_id, intent, files, reply } => {
+        Command::CommitIntent {
+            agent_id,
+            intent,
+            files,
+            reply,
+        } => {
             let _ = reply.send(db_commit_intent(conn, counter, &agent_id, &intent, &files));
         }
         Command::RecentChanges { limit, reply } => {
             let _ = reply.send(db_recent_changes(conn, limit));
         }
-        Command::WriteScratchpad { agent_id, message, reply } => {
+        Command::WriteScratchpad {
+            agent_id,
+            message,
+            reply,
+        } => {
             let _ = reply.send(db_write_scratchpad(conn, counter, &agent_id, &message));
         }
         Command::ReadScratchpad { limit, reply } => {

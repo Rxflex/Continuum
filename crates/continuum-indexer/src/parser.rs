@@ -44,7 +44,7 @@ pub fn parse(rel_path: &str, source: &str, lang: Lang) -> Option<ParsedFile> {
 
     let mut syms: Vec<RawSym> = Vec::new();
     let mut calls: Vec<RawCall> = Vec::new();
-    walk(tree.root_node(), src, lang, &mut syms, &mut calls);
+    walk(tree.root_node(), src, lang, 0, &mut syms, &mut calls);
 
     let mut nodes: Vec<GraphNode> = syms
         .iter()
@@ -77,7 +77,10 @@ pub fn parse(rel_path: &str, source: &str, lang: Lang) -> Option<ParsedFile> {
             }
         }
         if let Some(i) = best {
-            nodes[i].calls.push(CallSite { name: call.name.clone(), line: call.line });
+            nodes[i].calls.push(CallSite {
+                name: call.name.clone(),
+                line: call.line,
+            });
         }
     }
 
@@ -87,13 +90,27 @@ pub fn parse(rel_path: &str, source: &str, lang: Lang) -> Option<ParsedFile> {
     })
 }
 
-fn walk(node: Node, src: &[u8], lang: Lang, syms: &mut Vec<RawSym>, calls: &mut Vec<RawCall>) {
+/// Maximum AST recursion depth. Real code nests far below this; the cap keeps a
+/// pathologically nested file well within a worker thread's stack instead of
+/// overflowing it.
+const MAX_AST_DEPTH: usize = 512;
+
+fn walk(
+    node: Node,
+    src: &[u8],
+    lang: Lang,
+    depth: usize,
+    syms: &mut Vec<RawSym>,
+    calls: &mut Vec<RawCall>,
+) {
+    if depth >= MAX_AST_DEPTH {
+        return;
+    }
     if let Some((kind, name_field)) = def_spec(lang, node.kind()) {
         if let Some(name_node) = node.child_by_field_name(name_field) {
             if let Ok(name) = name_node.utf8_text(src) {
                 let source = text_of(node, src);
-                let signature =
-                    source.lines().next().unwrap_or("").trim().to_string();
+                let signature = source.lines().next().unwrap_or("").trim().to_string();
                 syms.push(RawSym {
                     kind,
                     name: name.to_string(),
@@ -117,7 +134,7 @@ fn walk(node: Node, src: &[u8], lang: Lang, syms: &mut Vec<RawSym>, calls: &mut 
     let mut cursor = node.walk();
     let children: Vec<Node> = node.named_children(&mut cursor).collect();
     for child in children {
-        walk(child, src, lang, syms, calls);
+        walk(child, src, lang, depth + 1, syms, calls);
     }
 }
 
@@ -176,9 +193,7 @@ fn callee_name(lang: Lang, node: Node, src: &[u8]) -> Option<String> {
 fn name_from_callee(node: Node, src: &[u8]) -> Option<String> {
     let text = |n: Node| n.utf8_text(src).ok().map(str::to_string);
     match node.kind() {
-        "identifier" | "field_identifier" | "property_identifier" | "type_identifier" => {
-            text(node)
-        }
+        "identifier" | "field_identifier" | "property_identifier" | "type_identifier" => text(node),
         "field_expression" => node.child_by_field_name("field").and_then(text),
         "scoped_identifier" => node.child_by_field_name("name").and_then(text),
         "member_expression" => node.child_by_field_name("property").and_then(text),
@@ -192,4 +207,78 @@ fn text_of(node: Node, src: &[u8]) -> String {
     std::str::from_utf8(&src[node.start_byte()..node.end_byte()])
         .unwrap_or("")
         .to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn names(parsed: &ParsedFile) -> Vec<String> {
+        parsed.symbols.iter().map(|s| s.name.clone()).collect()
+    }
+
+    #[test]
+    fn parses_rust_functions_and_structs() {
+        let src = "struct Point { x: i32 }\nfn add(a: i32) -> i32 { a + 1 }\n";
+        let parsed = parse("p.rs", src, Lang::Rust).expect("parsed");
+        let n = names(&parsed);
+        assert!(n.contains(&"Point".to_string()));
+        assert!(n.contains(&"add".to_string()));
+    }
+
+    #[test]
+    fn attributes_calls_to_enclosing_function() {
+        let src = "fn caller() { helper(); }\nfn helper() {}\n";
+        let parsed = parse("p.rs", src, Lang::Rust).expect("parsed");
+        let caller = parsed
+            .symbols
+            .iter()
+            .find(|s| s.name == "caller")
+            .expect("caller");
+        assert!(caller.calls.iter().any(|c| c.name == "helper"));
+    }
+
+    #[test]
+    fn signature_is_the_first_line() {
+        let src = "fn wrapped(\n  a: i32,\n) {}\n";
+        let parsed = parse("p.rs", src, Lang::Rust).expect("parsed");
+        let f = parsed
+            .symbols
+            .iter()
+            .find(|s| s.name == "wrapped")
+            .expect("fn");
+        assert_eq!(f.signature, "fn wrapped(");
+    }
+
+    #[test]
+    fn parses_python_classes_and_methods() {
+        let src = "class Animal:\n    def speak(self):\n        return 1\n";
+        let parsed = parse("a.py", src, Lang::Python).expect("parsed");
+        let n = names(&parsed);
+        assert!(n.contains(&"Animal".to_string()));
+        assert!(n.contains(&"speak".to_string()));
+    }
+
+    #[test]
+    fn parses_javascript() {
+        let src = "function greet(n) { return n; }\nclass Box {}\n";
+        let parsed = parse("a.js", src, Lang::JavaScript).expect("parsed");
+        let n = names(&parsed);
+        assert!(n.contains(&"greet".to_string()));
+        assert!(n.contains(&"Box".to_string()));
+    }
+
+    #[test]
+    fn parses_go() {
+        let src = "package main\nfunc Hello() string { return \"hi\" }\n";
+        let parsed = parse("m.go", src, Lang::Go).expect("parsed");
+        assert!(parsed.symbols.iter().any(|s| s.name == "Hello"));
+    }
+
+    #[test]
+    fn deeply_nested_input_does_not_overflow() {
+        // A pathological nest must be bounded by MAX_AST_DEPTH, not crash.
+        let src = format!("fn f() {{ {} }}", "if true {".repeat(9000)) + &"}".repeat(9000);
+        let _ = parse("p.rs", &src, Lang::Rust);
+    }
 }

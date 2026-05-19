@@ -31,11 +31,17 @@ pub struct CallToolResult {
 
 impl CallToolResult {
     pub fn ok(text: impl Into<String>) -> Self {
-        Self { text: text.into(), is_error: false }
+        Self {
+            text: text.into(),
+            is_error: false,
+        }
     }
 
     pub fn error(text: impl Into<String>) -> Self {
-        Self { text: text.into(), is_error: true }
+        Self {
+            text: text.into(),
+            is_error: true,
+        }
     }
 
     /// Serialize to the MCP `CallToolResult` JSON shape.
@@ -44,5 +50,35 @@ impl CallToolResult {
             "content": [{ "type": "text", "text": self.text }],
             "isError": self.is_error,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tool_def_renames_input_schema() {
+        let def = ToolDef::new("demo", "a demo tool", json!({ "type": "object" }));
+        let v = serde_json::to_value(&def).unwrap();
+        assert_eq!(v["name"], "demo");
+        assert_eq!(v["description"], "a demo tool");
+        assert!(v.get("inputSchema").is_some());
+        assert!(v.get("input_schema").is_none());
+    }
+
+    #[test]
+    fn call_tool_result_ok_shape() {
+        let v = CallToolResult::ok("done").into_value();
+        assert_eq!(v["isError"], false);
+        assert_eq!(v["content"][0]["type"], "text");
+        assert_eq!(v["content"][0]["text"], "done");
+    }
+
+    #[test]
+    fn call_tool_result_error_shape() {
+        let v = CallToolResult::error("boom").into_value();
+        assert_eq!(v["isError"], true);
+        assert_eq!(v["content"][0]["text"], "boom");
     }
 }

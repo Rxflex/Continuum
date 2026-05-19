@@ -37,7 +37,10 @@ pub async fn handle_message(raw: &str, daemon: &Arc<Daemon>) -> Option<JsonRpcRe
         "ping" => Ok(json!({})),
         "tools/list" => match serde_json::to_value(tools::tool_defs()) {
             Ok(list) => Ok(json!({ "tools": list })),
-            Err(e) => Err(JsonRpcError::new(error_codes::INTERNAL_ERROR, e.to_string())),
+            Err(e) => Err(JsonRpcError::new(
+                error_codes::INTERNAL_ERROR,
+                e.to_string(),
+            )),
         },
         "tools/call" => tools::call(req.params, daemon).await,
         "resources/list" => Ok(json!({ "resources": [] })),

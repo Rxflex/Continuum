@@ -45,3 +45,36 @@ impl Lang {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn extension_mapping() {
+        assert_eq!(Lang::from_extension("rs"), Some(Lang::Rust));
+        assert_eq!(Lang::from_extension("py"), Some(Lang::Python));
+        assert_eq!(Lang::from_extension("jsx"), Some(Lang::JavaScript));
+        assert_eq!(Lang::from_extension("tsx"), Some(Lang::TypeScript));
+        assert_eq!(Lang::from_extension("go"), Some(Lang::Go));
+        assert_eq!(Lang::from_extension("txt"), None);
+        assert_eq!(Lang::from_extension(""), None);
+    }
+
+    #[test]
+    fn every_grammar_loads() {
+        for lang in [
+            Lang::Rust,
+            Lang::Python,
+            Lang::JavaScript,
+            Lang::TypeScript,
+            Lang::Go,
+        ] {
+            let mut parser = tree_sitter::Parser::new();
+            assert!(
+                parser.set_language(&lang.tree_sitter()).is_ok(),
+                "{lang:?} grammar"
+            );
+        }
+    }
+}

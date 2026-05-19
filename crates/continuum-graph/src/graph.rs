@@ -36,7 +36,10 @@ impl CodeGraph {
             self.graph.add_edge(
                 file_idx,
                 sym_idx,
-                GraphEdge { kind: EdgeKind::Contains, resolution: EdgeResolution::Resolved },
+                GraphEdge {
+                    kind: EdgeKind::Contains,
+                    resolution: EdgeResolution::Resolved,
+                },
             );
         }
     }
@@ -90,7 +93,11 @@ impl CodeGraph {
             });
         }
         items.sort_by_key(|i| i.start_line);
-        Some(FileOutline { path: path.to_string(), language, items })
+        Some(FileOutline {
+            path: path.to_string(),
+            language,
+            items,
+        })
     }
 
     /// Find a symbol by name. `file_hint` (a substring of the path) breaks ties.
@@ -208,8 +215,11 @@ impl CodeGraph {
             if self.graph[idx].kind == NodeKind::File {
                 continue;
             }
-            let call_names: Vec<String> =
-                self.graph[idx].calls.iter().map(|c| c.name.clone()).collect();
+            let call_names: Vec<String> = self.graph[idx]
+                .calls
+                .iter()
+                .map(|c| c.name.clone())
+                .collect();
             for name in call_names {
                 if let Some(callee) = self.unique_symbol(&name) {
                     to_add.push((idx, callee));
@@ -220,7 +230,10 @@ impl CodeGraph {
             self.graph.add_edge(
                 from,
                 to,
-                GraphEdge { kind: EdgeKind::Calls, resolution: EdgeResolution::Resolved },
+                GraphEdge {
+                    kind: EdgeKind::Calls,
+                    resolution: EdgeResolution::Resolved,
+                },
             );
         }
     }
@@ -257,12 +270,7 @@ impl CodeGraph {
     /// each hit is a single structured row (kind, name, location, signature)
     /// rather than a dump of matching lines. `kind_filter` narrows to one
     /// symbol kind ("function", "struct", ...).
-    pub fn search(
-        &self,
-        query: &str,
-        limit: usize,
-        kind_filter: Option<&str>,
-    ) -> Vec<SearchHit> {
+    pub fn search(&self, query: &str, limit: usize, kind_filter: Option<&str>) -> Vec<SearchHit> {
         let mut q_terms = tokenize(query);
         q_terms.sort();
         q_terms.dedup();
@@ -274,9 +282,7 @@ impl CodeGraph {
             .graph
             .node_indices()
             .filter(|&i| self.graph[i].kind != NodeKind::File)
-            .filter(|&i| {
-                kind_filter.is_none_or(|k| self.graph[i].kind.as_str() == k)
-            })
+            .filter(|&i| kind_filter.is_none_or(|k| self.graph[i].kind.as_str() == k))
             .collect();
         if candidates.is_empty() {
             return Vec::new();
@@ -319,17 +325,14 @@ impl CodeGraph {
                 }
                 let n_q = df.get(term.as_str()).copied().unwrap_or(0) as f32;
                 let idf = (((n_docs - n_q + 0.5) / (n_q + 0.5)) + 1.0).ln();
-                score += idf * (tf * (K1 + 1.0))
-                    / (tf + K1 * (1.0 - B + B * dl / avg_len));
+                score += idf * (tf * (K1 + 1.0)) / (tf + K1 * (1.0 - B + B * dl / avg_len));
             }
             if score > 0.0 {
                 scored.push((score, idx));
             }
         }
 
-        scored.sort_by(|a, b| {
-            b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal)
-        });
+        scored.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
         scored.truncate(limit);
         scored
             .into_iter()
@@ -393,5 +396,203 @@ fn split_identifier(run: &str, out: &mut Vec<String>) {
     }
     if !piece.is_empty() {
         out.push(piece.to_lowercase());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::CallSite;
+
+    fn sym(name: &str, path: &str, kind: NodeKind, line: usize, sig: &str, src: &str) -> GraphNode {
+        GraphNode {
+            id: format!("{path}::{name}::{line}"),
+            kind,
+            name: name.to_string(),
+            path: path.to_string(),
+            language: String::new(),
+            start_line: line,
+            end_line: line + 5,
+            signature: sig.to_string(),
+            source: src.to_string(),
+            docstring: None,
+            calls: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn outline_lists_symbols_sorted_by_line() {
+        let mut g = CodeGraph::new();
+        let later = sym(
+            "beta",
+            "a.rs",
+            NodeKind::Function,
+            20,
+            "fn beta()",
+            "fn beta() {}",
+        );
+        let earlier = sym(
+            "alpha",
+            "a.rs",
+            NodeKind::Struct,
+            5,
+            "struct alpha",
+            "struct alpha;",
+        );
+        g.replace_file(
+            "a.rs",
+            GraphNode::file("a.rs", "rust"),
+            vec![later, earlier],
+        );
+
+        let outline = g.file_outline("a.rs").expect("outline");
+        assert_eq!(outline.language, "rust");
+        assert_eq!(outline.items.len(), 2);
+        assert_eq!(outline.items[0].name, "alpha");
+        assert_eq!(outline.items[1].name, "beta");
+        assert!(g.file_outline("missing.rs").is_none());
+    }
+
+    #[test]
+    fn find_symbol_honours_file_hint() {
+        let mut g = CodeGraph::new();
+        g.replace_file(
+            "a.rs",
+            GraphNode::file("a.rs", "rust"),
+            vec![sym("foo", "a.rs", NodeKind::Function, 1, "fn foo", "x")],
+        );
+        g.replace_file(
+            "b.rs",
+            GraphNode::file("b.rs", "rust"),
+            vec![sym("foo", "b.rs", NodeKind::Function, 1, "fn foo", "y")],
+        );
+
+        assert!(g.find_symbol("foo", None).is_some());
+        assert_eq!(g.find_symbol("foo", Some("b.rs")).unwrap().path, "b.rs");
+        assert!(g.find_symbol("nope", None).is_none());
+    }
+
+    #[test]
+    fn callers_reports_call_sites() {
+        let mut g = CodeGraph::new();
+        let mut caller = sym("main", "a.rs", NodeKind::Function, 1, "fn main", "...");
+        caller.calls.push(CallSite {
+            name: "helper".to_string(),
+            line: 3,
+        });
+        g.replace_file("a.rs", GraphNode::file("a.rs", "rust"), vec![caller]);
+
+        let callers = g.callers("helper");
+        assert_eq!(callers.len(), 1);
+        assert_eq!(callers[0].line, 3);
+        assert_eq!(callers[0].caller_symbol.as_deref(), Some("main"));
+        assert!(g.callers("unknown").is_empty());
+    }
+
+    #[test]
+    fn remove_file_clears_all_state() {
+        let mut g = CodeGraph::new();
+        g.replace_file(
+            "a.rs",
+            GraphNode::file("a.rs", "rust"),
+            vec![sym("foo", "a.rs", NodeKind::Function, 1, "fn foo", "x")],
+        );
+        g.remove_file("a.rs");
+
+        assert!(g.file_outline("a.rs").is_none());
+        assert!(g.find_symbol("foo", None).is_none());
+        let stats = g.stats();
+        assert_eq!(stats.files, 0);
+        assert_eq!(stats.symbols, 0);
+    }
+
+    #[test]
+    fn resolve_calls_builds_edges_and_local_graph() {
+        let mut g = CodeGraph::new();
+        let mut a = sym("a", "f.rs", NodeKind::Function, 1, "fn a", "");
+        a.calls.push(CallSite {
+            name: "b".to_string(),
+            line: 2,
+        });
+        let b = sym("b", "f.rs", NodeKind::Function, 10, "fn b", "");
+        g.replace_file("f.rs", GraphNode::file("f.rs", "rust"), vec![a, b]);
+        g.resolve_calls();
+
+        assert_eq!(g.stats().call_edges, 1);
+        let dep = g.local_graph("a", 2).expect("local graph");
+        assert_eq!(dep.symbol, "a");
+        assert_eq!(dep.children.len(), 1);
+        assert_eq!(dep.children[0].symbol, "b");
+    }
+
+    #[test]
+    fn search_ranks_relevant_symbol_first() {
+        let mut g = CodeGraph::new();
+        g.replace_file(
+            "f.rs",
+            GraphNode::file("f.rs", "rust"),
+            vec![
+                sym(
+                    "parse_config",
+                    "f.rs",
+                    NodeKind::Function,
+                    1,
+                    "fn parse_config",
+                    "parse the config file",
+                ),
+                sym(
+                    "unrelated",
+                    "f.rs",
+                    NodeKind::Function,
+                    20,
+                    "fn unrelated",
+                    "does nothing",
+                ),
+            ],
+        );
+        let hits = g.search("parse config", 10, None);
+        assert!(!hits.is_empty());
+        assert_eq!(hits[0].name, "parse_config");
+    }
+
+    #[test]
+    fn search_kind_filter_restricts_results() {
+        let mut g = CodeGraph::new();
+        g.replace_file(
+            "f.rs",
+            GraphNode::file("f.rs", "rust"),
+            vec![
+                sym(
+                    "Thing",
+                    "f.rs",
+                    NodeKind::Struct,
+                    1,
+                    "struct Thing",
+                    "thing data",
+                ),
+                sym(
+                    "thing_fn",
+                    "f.rs",
+                    NodeKind::Function,
+                    10,
+                    "fn thing_fn",
+                    "thing logic",
+                ),
+            ],
+        );
+        let hits = g.search("thing", 10, Some("struct"));
+        assert!(!hits.is_empty());
+        assert!(hits.iter().all(|h| h.kind == "struct"));
+    }
+
+    #[test]
+    fn tokenize_splits_snake_and_camel_case() {
+        let toks = tokenize("CodeGraph resolve_calls fileOutline");
+        for expected in ["code", "graph", "resolve", "calls", "file", "outline"] {
+            assert!(
+                toks.contains(&expected.to_string()),
+                "missing token {expected}"
+            );
+        }
     }
 }

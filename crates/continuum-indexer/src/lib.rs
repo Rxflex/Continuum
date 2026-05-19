@@ -111,9 +111,16 @@ fn symbol_docs(parsed: &parser::ParsedFile) -> Vec<SymbolDoc> {
         .collect()
 }
 
+/// Files larger than this are skipped during indexing — generated bundles and
+/// vendored blobs, not code an agent navigates by symbol.
+const MAX_FILE_BYTES: u64 = 2 * 1024 * 1024;
+
 fn parse_path(root: &Path, abs: &Path) -> Option<(String, parser::ParsedFile)> {
     let ext = abs.extension()?.to_str()?;
     let lang = Lang::from_extension(ext)?;
+    if std::fs::metadata(abs).ok()?.len() > MAX_FILE_BYTES {
+        return None;
+    }
     let source = std::fs::read_to_string(abs).ok()?;
     let rel = rel_path(root, abs);
     let parsed = parser::parse(&rel, &source, lang)?;

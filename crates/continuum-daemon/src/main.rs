@@ -25,7 +25,11 @@ use tracing_subscriber::EnvFilter;
 use crate::lifecycle::Workspace;
 
 #[derive(Parser)]
-#[command(name = "continuum-daemon", version, about = "Continuum workspace daemon")]
+#[command(
+    name = "continuum-daemon",
+    version,
+    about = "Continuum workspace daemon"
+)]
 struct Args {
     /// Workspace root directory.
     #[arg(long)]
@@ -49,7 +53,9 @@ pub(crate) struct Daemon {
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
+        .with_env_filter(
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
+        )
         .with_writer(std::io::stderr)
         .init();
 
@@ -100,7 +106,9 @@ async fn main() -> Result<()> {
         continuum_indexer::start_watcher(ws.root_path(), graph.clone(), semantic.clone())
             .map_err(|e| anyhow::anyhow!("start file watcher: {e}"))?;
 
-    let listener = TcpListener::bind("127.0.0.1:0").await.context("bind IPC socket")?;
+    let listener = TcpListener::bind("127.0.0.1:0")
+        .await
+        .context("bind IPC socket")?;
     let addr = listener.local_addr()?;
     let token = generate_token();
 
@@ -110,7 +118,10 @@ async fn main() -> Result<()> {
         token: token.clone(),
         protocol_version: PROTOCOL_VERSION,
     })?;
-    tracing::info!("continuum daemon listening on {addr} (workspace {})", ws.display());
+    tracing::info!(
+        "continuum daemon listening on {addr} (workspace {})",
+        ws.display()
+    );
 
     let daemon = Arc::new(Daemon {
         token,

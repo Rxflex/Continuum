@@ -36,3 +36,43 @@ pub fn fuse(lexical: Vec<SearchHit>, semantic: Vec<SearchHit>, limit: usize) -> 
         })
         .collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn hit(name: &str, path: &str, line: usize) -> SearchHit {
+        SearchHit {
+            name: name.to_string(),
+            kind: "function".to_string(),
+            path: path.to_string(),
+            line,
+            signature: String::new(),
+            score: 0.0,
+        }
+    }
+
+    #[test]
+    fn fuse_merges_dedups_and_ranks_shared_hits_first() {
+        let lexical = vec![hit("a", "f.rs", 1), hit("b", "f.rs", 2)];
+        let semantic = vec![hit("b", "f.rs", 2), hit("c", "f.rs", 3)];
+        let out = fuse(lexical, semantic, 10);
+        assert_eq!(out.len(), 3, "deduped by (path, line)");
+        assert_eq!(out[0].name, "b", "hit in both lists ranks first");
+    }
+
+    #[test]
+    fn fuse_respects_the_limit() {
+        let lexical = vec![
+            hit("a", "f.rs", 1),
+            hit("b", "f.rs", 2),
+            hit("c", "f.rs", 3),
+        ];
+        assert_eq!(fuse(lexical, vec![], 2).len(), 2);
+    }
+
+    #[test]
+    fn fuse_of_empty_inputs_is_empty() {
+        assert!(fuse(vec![], vec![], 5).is_empty());
+    }
+}

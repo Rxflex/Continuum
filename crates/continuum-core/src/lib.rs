@@ -9,6 +9,4 @@ pub mod error;
 pub mod protocol;
 
 pub use error::{ContinuumError, Result};
-pub use protocol::{
-    Handshake, HandshakeReply, LockFile, MCP_PROTOCOL_VERSION, PROTOCOL_VERSION,
-};
+pub use protocol::{Handshake, HandshakeReply, LockFile, MCP_PROTOCOL_VERSION, PROTOCOL_VERSION};

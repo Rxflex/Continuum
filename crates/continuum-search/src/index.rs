@@ -97,7 +97,11 @@ impl SemanticEngine {
                 vector: normalize(vector),
             })
             .collect();
-        self.index.write().await.by_file.insert(path.to_string(), entries);
+        self.index
+            .write()
+            .await
+            .by_file
+            .insert(path.to_string(), entries);
     }
 
     pub async fn remove_file(&self, path: &str) {
@@ -123,4 +127,63 @@ fn normalize(mut v: Vec<f32>) -> Vec<f32> {
         }
     }
     v
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalize_yields_unit_length() {
+        let n = normalize(vec![3.0, 4.0]);
+        let len = (n[0] * n[0] + n[1] * n[1]).sqrt();
+        assert!((len - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn normalize_zero_vector_is_safe() {
+        assert_eq!(normalize(vec![0.0, 0.0]), vec![0.0, 0.0]);
+    }
+
+    #[test]
+    fn cosine_of_identical_normalized_vectors_is_one() {
+        let a = normalize(vec![1.0, 2.0, 3.0, 4.0]);
+        assert!((dot(&a, &a) - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn cosine_of_orthogonal_vectors_is_zero() {
+        let a = normalize(vec![1.0, 0.0]);
+        let b = normalize(vec![0.0, 1.0]);
+        assert!(dot(&a, &b).abs() < 1e-6);
+    }
+
+    #[test]
+    fn index_search_ranks_nearest_entry_first() {
+        let mut index = SemanticIndex::default();
+        index.by_file.insert(
+            "f.rs".to_string(),
+            vec![
+                Entry {
+                    name: "near".to_string(),
+                    kind: "function".to_string(),
+                    path: "f.rs".to_string(),
+                    line: 1,
+                    signature: String::new(),
+                    vector: normalize(vec![1.0, 0.1, 0.0]),
+                },
+                Entry {
+                    name: "far".to_string(),
+                    kind: "function".to_string(),
+                    path: "f.rs".to_string(),
+                    line: 2,
+                    signature: String::new(),
+                    vector: normalize(vec![0.0, 0.0, 1.0]),
+                },
+            ],
+        );
+        let query = normalize(vec![1.0, 0.0, 0.0]);
+        let hits = index.search(&query, 10, None);
+        assert_eq!(hits[0].name, "near");
+    }
 }

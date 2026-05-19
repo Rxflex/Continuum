@@ -12,7 +12,11 @@ use continuum_transport::proxy::{attach, run_proxy, AttachResult};
 use tokio::net::TcpStream;
 
 #[derive(Parser)]
-#[command(name = "continuum-adapter", version, about = "Continuum thin MCP adapter")]
+#[command(
+    name = "continuum-adapter",
+    version,
+    about = "Continuum thin MCP adapter"
+)]
 struct Args {
     /// Workspace root. Defaults to the current working directory.
     #[arg(long)]
@@ -80,7 +84,10 @@ fn spawn_daemon(workspace: &Path, idle_minutes: u64) -> Result<(), String> {
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
     let daemon_exe = exe.with_file_name(daemon_filename());
     if !daemon_exe.exists() {
-        return Err(format!("daemon binary not found at {}", daemon_exe.display()));
+        return Err(format!(
+            "daemon binary not found at {}",
+            daemon_exe.display()
+        ));
     }
 
     let continuum_dir = workspace.join(".continuum");

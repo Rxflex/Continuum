@@ -33,3 +33,46 @@ pub struct HandshakeReply {
     pub error: Option<String>,
     pub protocol_version: u32,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn lockfile_round_trips_through_json() {
+        let lock = LockFile {
+            pid: 4242,
+            endpoint: "127.0.0.1:9000".to_string(),
+            token: "secret".to_string(),
+            protocol_version: PROTOCOL_VERSION,
+        };
+        let json = serde_json::to_string(&lock).unwrap();
+        let back: LockFile = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.pid, 4242);
+        assert_eq!(back.endpoint, "127.0.0.1:9000");
+        assert_eq!(back.token, "secret");
+        assert_eq!(back.protocol_version, PROTOCOL_VERSION);
+    }
+
+    #[test]
+    fn handshake_round_trips_through_json() {
+        let hs = Handshake {
+            protocol_version: PROTOCOL_VERSION,
+            token: "abc".to_string(),
+        };
+        let back: Handshake = serde_json::from_str(&serde_json::to_string(&hs).unwrap()).unwrap();
+        assert_eq!(back.protocol_version, PROTOCOL_VERSION);
+        assert_eq!(back.token, "abc");
+    }
+
+    #[test]
+    fn handshake_reply_omits_absent_error() {
+        let reply = HandshakeReply {
+            ok: true,
+            error: None,
+            protocol_version: PROTOCOL_VERSION,
+        };
+        let json = serde_json::to_string(&reply).unwrap();
+        assert!(!json.contains("error"));
+    }
+}

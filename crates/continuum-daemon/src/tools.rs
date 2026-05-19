@@ -140,13 +140,16 @@ pub fn tool_defs() -> Vec<ToolDef> {
 
 /// Handle a `tools/call` request.
 pub async fn call(params: Option<Value>, daemon: &Arc<Daemon>) -> Result<Value, JsonRpcError> {
-    let params = params
-        .ok_or_else(|| JsonRpcError::new(error_codes::INVALID_PARAMS, "missing params"))?;
+    let params =
+        params.ok_or_else(|| JsonRpcError::new(error_codes::INVALID_PARAMS, "missing params"))?;
     let name = params
         .get("name")
         .and_then(Value::as_str)
         .ok_or_else(|| JsonRpcError::new(error_codes::INVALID_PARAMS, "missing tool name"))?;
-    let args = params.get("arguments").cloned().unwrap_or_else(|| json!({}));
+    let args = params
+        .get("arguments")
+        .cloned()
+        .unwrap_or_else(|| json!({}));
 
     let result = match dispatch(name, &args, daemon).await {
         Ok(text) => CallToolResult::ok(text),
@@ -181,7 +184,11 @@ async fn dispatch(name: &str, args: &Value, daemon: &Arc<Daemon>) -> Result<Stri
         }
         "get_local_graph" => {
             let symbol = str_arg(args, "symbol_name")?;
-            let depth = args.get("depth").and_then(Value::as_u64).unwrap_or(2) as usize;
+            let depth = args
+                .get("depth")
+                .and_then(Value::as_u64)
+                .unwrap_or(2)
+                .min(25) as usize;
             let graph = daemon.graph.read().await;
             graph
                 .local_graph(&symbol, depth)
@@ -190,7 +197,11 @@ async fn dispatch(name: &str, args: &Value, daemon: &Arc<Daemon>) -> Result<Stri
         }
         "search_code" => {
             let query = str_arg(args, "query")?;
-            let limit = args.get("limit").and_then(Value::as_u64).unwrap_or(15) as usize;
+            let limit = args
+                .get("limit")
+                .and_then(Value::as_u64)
+                .unwrap_or(15)
+                .min(200) as usize;
             let kind = args.get("kind").and_then(Value::as_str);
             let lexical = {
                 let graph = daemon.graph.read().await;
@@ -220,7 +231,11 @@ async fn dispatch(name: &str, args: &Value, daemon: &Arc<Daemon>) -> Result<Stri
             Ok(format!("stored architectural decision #{id}"))
         }
         "read_project_guidelines" => {
-            let items = daemon.memory.read_guidelines().await.map_err(|e| e.to_string())?;
+            let items = daemon
+                .memory
+                .read_guidelines()
+                .await
+                .map_err(|e| e.to_string())?;
             Ok(pretty(items))
         }
         "commit_intent" => {
@@ -229,7 +244,11 @@ async fn dispatch(name: &str, args: &Value, daemon: &Arc<Daemon>) -> Result<Stri
             let files = args
                 .get("files_touched")
                 .and_then(Value::as_array)
-                .map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|v| v.as_str().map(String::from))
+                        .collect()
+                })
                 .unwrap_or_default();
             let id = daemon
                 .memory
@@ -239,8 +258,16 @@ async fn dispatch(name: &str, args: &Value, daemon: &Arc<Daemon>) -> Result<Stri
             Ok(format!("logged intent #{id}"))
         }
         "get_recent_changes" => {
-            let limit = args.get("limit").and_then(Value::as_i64).unwrap_or(10);
-            let items = daemon.memory.recent_changes(limit).await.map_err(|e| e.to_string())?;
+            let limit = args
+                .get("limit")
+                .and_then(Value::as_i64)
+                .unwrap_or(10)
+                .clamp(1, 1000);
+            let items = daemon
+                .memory
+                .recent_changes(limit)
+                .await
+                .map_err(|e| e.to_string())?;
             Ok(pretty(items))
         }
         "write_scratchpad" => {
@@ -254,8 +281,16 @@ async fn dispatch(name: &str, args: &Value, daemon: &Arc<Daemon>) -> Result<Stri
             Ok(format!("appended scratchpad entry #{id}"))
         }
         "read_scratchpad" => {
-            let limit = args.get("limit").and_then(Value::as_i64).unwrap_or(10);
-            let items = daemon.memory.read_scratchpad(limit).await.map_err(|e| e.to_string())?;
+            let limit = args
+                .get("limit")
+                .and_then(Value::as_i64)
+                .unwrap_or(10)
+                .clamp(1, 1000);
+            let items = daemon
+                .memory
+                .read_scratchpad(limit)
+                .await
+                .map_err(|e| e.to_string())?;
             Ok(pretty(items))
         }
         other => Err(format!("unknown tool: {other}")),
