@@ -46,13 +46,16 @@ fn start_daemon(workspace: &Path) -> (DaemonGuard, Value) {
         .stderr(Stdio::null())
         .spawn()
         .expect("spawn daemon");
+    // Own the child immediately so its `Drop` reaps it even if an assertion
+    // below unwinds before the daemon is ready.
+    let guard = DaemonGuard(child);
 
     let lockfile = workspace.join(".continuum").join("daemon.lock");
     let deadline = Instant::now() + Duration::from_secs(30);
     loop {
         if let Ok(text) = std::fs::read_to_string(&lockfile) {
             if let Ok(value) = serde_json::from_str::<Value>(&text) {
-                return (DaemonGuard(child), value);
+                return (guard, value);
             }
         }
         assert!(
