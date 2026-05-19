@@ -133,13 +133,53 @@ async fn main() -> Result<()> {
     }
 
     loop {
-        let (stream, peer) = listener.accept().await.context("accept")?;
-        let d = daemon.clone();
-        tokio::spawn(async move {
-            if let Err(e) = handle_connection(stream, d).await {
-                tracing::debug!("connection {peer} ended: {e}");
+        tokio::select! {
+            accepted = listener.accept() => {
+                let (stream, peer) = accepted.context("accept")?;
+                let d = daemon.clone();
+                tokio::spawn(async move {
+                    if let Err(e) = handle_connection(stream, d).await {
+                        tracing::debug!("connection {peer} ended: {e}");
+                    }
+                });
             }
-        });
+            _ = shutdown_signal() => {
+                tracing::info!("shutdown signal received; stopping");
+                break;
+            }
+        }
+    }
+
+    // Clean exit: drop the lockfile so the next adapter spawns a fresh daemon
+    // instead of dialing a dead endpoint. The singleton lock and file watcher
+    // are released as their guards drop.
+    ws.remove_lockfile();
+    tracing::info!("continuum daemon stopped");
+    Ok(())
+}
+
+/// Resolves when the process is asked to shut down: Ctrl-C on any platform,
+/// or additionally SIGTERM on Unix.
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        let _ = tokio::signal::ctrl_c().await;
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
+            Ok(mut sig) => {
+                sig.recv().await;
+            }
+            Err(_) => std::future::pending::<()>().await,
+        }
+    };
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {}
+        _ = terminate => {}
     }
 }
 

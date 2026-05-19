@@ -361,3 +361,90 @@ fn db_read_scratchpad(conn: &Connection, limit: i64) -> Result<Vec<ScratchpadEnt
     }
     Ok(out)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+
+    fn temp_db() -> PathBuf {
+        let n = COUNTER.fetch_add(1, Ordering::SeqCst);
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let mut path = std::env::temp_dir();
+        path.push(format!("continuum-memtest-{nanos}-{n}.db"));
+        path
+    }
+
+    #[tokio::test]
+    async fn decisions_round_trip() {
+        let mem = Memory::open(&temp_db()).unwrap();
+        let id = mem
+            .store_decision("transport".into(), "tcp loopback".into())
+            .await
+            .unwrap();
+        assert!(id >= 1);
+        let all = mem.read_guidelines().await.unwrap();
+        assert_eq!(all.len(), 1);
+        assert_eq!(all[0].topic, "transport");
+        assert_eq!(all[0].description, "tcp loopback");
+    }
+
+    #[tokio::test]
+    async fn intents_round_trip_with_files() {
+        let mem = Memory::open(&temp_db()).unwrap();
+        mem.commit_intent(
+            "agentA".into(),
+            "did the thing".into(),
+            vec!["a.rs".into(), "b.rs".into()],
+        )
+        .await
+        .unwrap();
+        let recent = mem.recent_changes(10).await.unwrap();
+        assert_eq!(recent.len(), 1);
+        assert_eq!(recent[0].agent_id, "agentA");
+        assert_eq!(
+            recent[0].files_touched,
+            vec!["a.rs".to_string(), "b.rs".to_string()]
+        );
+    }
+
+    #[tokio::test]
+    async fn scratchpad_appends_newest_first_with_monotonic_seq() {
+        let mem = Memory::open(&temp_db()).unwrap();
+        mem.write_scratchpad("a1".into(), "first".into())
+            .await
+            .unwrap();
+        mem.write_scratchpad("a2".into(), "second".into())
+            .await
+            .unwrap();
+        let entries = mem.read_scratchpad(10).await.unwrap();
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[0].message, "second");
+        assert_eq!(entries[1].message, "first");
+        assert!(entries[0].seq > entries[1].seq);
+    }
+
+    #[tokio::test]
+    async fn sequence_continues_across_reopen() {
+        let path = temp_db();
+        let first_seq = {
+            let mem = Memory::open(&path).unwrap();
+            mem.write_scratchpad("a".into(), "one".into())
+                .await
+                .unwrap();
+            mem.read_scratchpad(1).await.unwrap()[0].seq
+        };
+        let mem = Memory::open(&path).unwrap();
+        mem.write_scratchpad("a".into(), "two".into())
+            .await
+            .unwrap();
+        let seq = mem.read_scratchpad(1).await.unwrap()[0].seq;
+        assert!(seq > first_seq, "seq {seq} must exceed {first_seq}");
+    }
+}
