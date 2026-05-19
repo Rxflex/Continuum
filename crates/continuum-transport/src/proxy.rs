@@ -33,9 +33,10 @@ pub async fn attach(endpoint: &str, token: &str) -> std::io::Result<AttachResult
     let reply: HandshakeReply = serde_json::from_str(reply_line.trim())
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
 
-    let stream = reader.into_inner().reunite(write_half).map_err(|e| {
-        std::io::Error::new(std::io::ErrorKind::Other, e.to_string())
-    })?;
+    let stream = reader
+        .into_inner()
+        .reunite(write_half)
+        .map_err(|e| std::io::Error::other(e.to_string()))?;
 
     if reply.ok {
         Ok(AttachResult::Connected(stream))

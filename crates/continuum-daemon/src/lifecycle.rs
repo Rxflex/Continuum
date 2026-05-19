@@ -54,6 +54,7 @@ impl Workspace {
             .create(true)
             .read(true)
             .write(true)
+            .truncate(false)
             .open(self.singleton_path())
             .context("open singleton lock")?;
         match file.try_lock_exclusive() {
