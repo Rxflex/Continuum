@@ -31,12 +31,13 @@ const SKIP_DIRS: &[&str] = &[
 
 /// Full one-shot index of a workspace. Returns the number of files indexed.
 ///
-/// `semantic` is the optional embedding engine; when present, every file's
-/// symbols are embedded alongside the graph update.
+/// Every file's symbols are fed to `semantic` alongside the graph update; the
+/// engine itself decides whether to embed them (it stays dormant until its
+/// model has loaded — see [`continuum_search::SemanticEngine`]).
 pub async fn index_workspace(
     root: &Path,
     graph: Arc<RwLock<CodeGraph>>,
-    semantic: Option<Arc<SemanticEngine>>,
+    semantic: Arc<SemanticEngine>,
 ) -> usize {
     let mut count = 0;
     for abs in collect_source_files(root) {
@@ -47,9 +48,7 @@ pub async fn index_workspace(
                 let mut guard = graph.write().await;
                 guard.replace_file(&rel, parsed.file_node, parsed.symbols);
             }
-            if let Some(engine) = &semantic {
-                engine.index_file(&rel, docs).await;
-            }
+            semantic.index_file(&rel, docs).await;
             count += 1;
         }
     }
@@ -63,7 +62,7 @@ pub(crate) async fn reindex_one(
     root: &Path,
     abs: &Path,
     graph: &Arc<RwLock<CodeGraph>>,
-    semantic: &Option<Arc<SemanticEngine>>,
+    semantic: &Arc<SemanticEngine>,
 ) {
     let supported = abs
         .extension()
@@ -81,16 +80,12 @@ pub(crate) async fn reindex_one(
                 let mut guard = graph.write().await;
                 guard.replace_file(&rel, parsed.file_node, parsed.symbols);
             }
-            if let Some(engine) = semantic {
-                engine.index_file(&rel, docs).await;
-            }
+            semantic.index_file(&rel, docs).await;
             tracing::debug!("re-indexed {rel}");
         }
     } else {
         graph.write().await.remove_file(&rel);
-        if let Some(engine) = semantic {
-            engine.remove_file(&rel).await;
-        }
+        semantic.remove_file(&rel).await;
         tracing::debug!("dropped {rel}");
     }
 }

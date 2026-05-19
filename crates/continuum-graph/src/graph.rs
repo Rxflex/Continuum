@@ -100,6 +100,15 @@ impl CodeGraph {
         })
     }
 
+    /// Outlines of every indexed file. Used to back-fill the semantic index
+    /// once the embedding model finishes loading.
+    pub fn all_outlines(&self) -> Vec<FileOutline> {
+        self.by_file
+            .keys()
+            .filter_map(|path| self.file_outline(path))
+            .collect()
+    }
+
     /// Find a symbol by name. `file_hint` (a substring of the path) breaks ties.
     pub fn find_symbol(&self, name: &str, file_hint: Option<&str>) -> Option<SymbolDefinition> {
         let candidates = self.by_name.get(name)?;

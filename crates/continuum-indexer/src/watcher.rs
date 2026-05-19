@@ -19,7 +19,7 @@ const DEBOUNCE: Duration = Duration::from_millis(300);
 pub fn start_watcher(
     root: PathBuf,
     graph: Arc<RwLock<CodeGraph>>,
-    semantic: Option<Arc<SemanticEngine>>,
+    semantic: Arc<SemanticEngine>,
 ) -> notify::Result<RecommendedWatcher> {
     let (tx, mut rx) = mpsc::unbounded_channel::<PathBuf>();
 

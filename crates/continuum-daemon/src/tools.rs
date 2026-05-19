@@ -207,16 +207,13 @@ async fn dispatch(name: &str, args: &Value, daemon: &Arc<Daemon>) -> Result<Stri
                 let graph = daemon.graph.read().await;
                 graph.search(&query, limit * 2, kind)
             };
-            let hits = match &daemon.semantic {
-                Some(engine) => {
-                    let semantic = engine.search(&query, limit * 2, kind).await;
-                    continuum_search::fuse(lexical, semantic, limit)
-                }
-                None => {
-                    let mut hits = lexical;
-                    hits.truncate(limit);
-                    hits
-                }
+            let hits = if daemon.semantic.is_ready() {
+                let semantic = daemon.semantic.search(&query, limit * 2, kind).await;
+                continuum_search::fuse(lexical, semantic, limit)
+            } else {
+                let mut hits = lexical;
+                hits.truncate(limit);
+                hits
             };
             Ok(pretty(hits))
         }

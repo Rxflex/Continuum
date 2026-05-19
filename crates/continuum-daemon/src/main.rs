@@ -44,8 +44,8 @@ pub(crate) struct Daemon {
     pub(crate) token: String,
     pub(crate) graph: Arc<RwLock<CodeGraph>>,
     pub(crate) memory: Memory,
-    /// Semantic search engine; `None` when the embedding model is unavailable.
-    pub(crate) semantic: Option<Arc<continuum_search::SemanticEngine>>,
+    /// Semantic search engine. Dormant until its model loads in the background.
+    pub(crate) semantic: Arc<continuum_search::SemanticEngine>,
     pub(crate) conns: AtomicUsize,
     pub(crate) last_activity: Mutex<Instant>,
 }
@@ -74,22 +74,10 @@ async fn main() -> Result<()> {
     let memory = Memory::open(&ws.db_path()).map_err(|e| anyhow::anyhow!("open memory: {e}"))?;
     let graph = Arc::new(RwLock::new(CodeGraph::new()));
 
-    // Load the embedding model for semantic search. On failure (e.g. offline on
-    // first run) the daemon degrades gracefully to lexical-only search.
-    let semantic = match tokio::task::spawn_blocking(continuum_search::Embedder::load).await {
-        Ok(Ok(embedder)) => {
-            tracing::info!("embedding model ready; semantic search enabled");
-            Some(Arc::new(continuum_search::SemanticEngine::new(embedder)))
-        }
-        Ok(Err(e)) => {
-            tracing::warn!("semantic search disabled (model load failed): {e}");
-            None
-        }
-        Err(e) => {
-            tracing::warn!("semantic search disabled (load task panicked): {e}");
-            None
-        }
-    };
+    // The semantic engine exists immediately but stays dormant until the
+    // embedding model finishes loading in the background, so the daemon never
+    // blocks startup on a model download.
+    let semantic = Arc::new(continuum_search::SemanticEngine::new());
 
     // Index in the background so the daemon serves immediately; navigation
     // tools return progressively richer results as the scan completes.
@@ -105,6 +93,10 @@ async fn main() -> Result<()> {
     let _watcher =
         continuum_indexer::start_watcher(ws.root_path(), graph.clone(), semantic.clone())
             .map_err(|e| anyhow::anyhow!("start file watcher: {e}"))?;
+
+    // Load the embedding model off the startup path; back-fill the semantic
+    // index once it is ready.
+    spawn_model_load(semantic.clone(), graph.clone());
 
     let listener = TcpListener::bind("127.0.0.1:0")
         .await
@@ -175,6 +167,41 @@ fn spawn_idle_watch(daemon: Arc<Daemon>, ws: Workspace, idle: Duration) {
                 ws.remove_lockfile();
                 std::process::exit(0);
             }
+        }
+    });
+}
+
+/// Load the embedding model off the startup path. On success, install it into
+/// the semantic engine and back-fill the index from whatever the graph already
+/// holds; on failure the daemon stays on lexical-only search.
+fn spawn_model_load(
+    semantic: Arc<continuum_search::SemanticEngine>,
+    graph: Arc<RwLock<CodeGraph>>,
+) {
+    tokio::spawn(async move {
+        match tokio::task::spawn_blocking(continuum_search::Embedder::load).await {
+            Ok(Ok(embedder)) => {
+                semantic.activate(embedder);
+                let outlines = graph.read().await.all_outlines();
+                for outline in outlines {
+                    let docs: Vec<continuum_search::SymbolDoc> = outline
+                        .items
+                        .iter()
+                        .map(|item| continuum_search::SymbolDoc {
+                            name: item.name.clone(),
+                            kind: item.kind.clone(),
+                            path: outline.path.clone(),
+                            line: item.start_line,
+                            signature: item.signature.clone(),
+                            embed_text: format!("{} {}", item.name, item.signature),
+                        })
+                        .collect();
+                    semantic.index_file(&outline.path, docs).await;
+                }
+                tracing::info!("embedding model ready; semantic search enabled");
+            }
+            Ok(Err(e)) => tracing::warn!("semantic search disabled (model load failed): {e}"),
+            Err(e) => tracing::warn!("semantic search disabled (load task panicked): {e}"),
         }
     });
 }

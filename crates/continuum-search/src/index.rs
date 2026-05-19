@@ -5,6 +5,7 @@
 //! and no approximate-nearest-neighbour structure to maintain.
 
 use std::collections::HashMap;
+use std::sync::OnceLock;
 
 use continuum_core::dto::SearchHit;
 use tokio::sync::RwLock;
@@ -64,27 +65,53 @@ impl SemanticIndex {
 }
 
 /// Embedding-backed semantic search over the workspace's symbols.
+///
+/// The engine is created immediately at daemon startup but stays **dormant**
+/// until [`activate`](Self::activate) installs the embedding model — which a
+/// background task does once the model has loaded. While dormant it accepts no
+/// documents and answers queries with an empty result, so the daemon never
+/// blocks startup on a model download.
 pub struct SemanticEngine {
-    embedder: Embedder,
+    embedder: OnceLock<Embedder>,
     index: RwLock<SemanticIndex>,
 }
 
+impl Default for SemanticEngine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SemanticEngine {
-    pub fn new(embedder: Embedder) -> Self {
+    pub fn new() -> Self {
         Self {
-            embedder,
+            embedder: OnceLock::new(),
             index: RwLock::new(SemanticIndex::default()),
         }
     }
 
+    /// Install the embedding model. Idempotent — only the first call takes.
+    pub fn activate(&self, embedder: Embedder) {
+        let _ = self.embedder.set(embedder);
+    }
+
+    /// Whether the embedding model has loaded and the engine is serving.
+    pub fn is_ready(&self) -> bool {
+        self.embedder.get().is_some()
+    }
+
     /// Embed and store all symbols of one file, replacing any prior entries.
+    /// A no-op while the engine is dormant.
     pub async fn index_file(&self, path: &str, docs: Vec<SymbolDoc>) {
+        let Some(embedder) = self.embedder.get() else {
+            return;
+        };
         if docs.is_empty() {
             self.index.write().await.by_file.remove(path);
             return;
         }
         let texts: Vec<String> = docs.iter().map(|d| d.embed_text.clone()).collect();
-        let vectors = self.embedder.embed(&texts);
+        let vectors = embedder.embed(&texts);
         let entries: Vec<Entry> = docs
             .into_iter()
             .zip(vectors)
@@ -109,8 +136,12 @@ impl SemanticEngine {
     }
 
     /// Embed `query` and return the nearest symbols by cosine similarity.
+    /// Returns empty while the engine is dormant.
     pub async fn search(&self, query: &str, limit: usize, kind: Option<&str>) -> Vec<SearchHit> {
-        let q = normalize(self.embedder.embed_one(query));
+        let Some(embedder) = self.embedder.get() else {
+            return Vec::new();
+        };
+        let q = normalize(embedder.embed_one(query));
         self.index.read().await.search(&q, limit, kind)
     }
 }
