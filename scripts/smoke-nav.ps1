@@ -47,6 +47,10 @@ try {
     Write-Output "=== find_callers insert_node ==="
     Write-Output $reader.ReadLine()
 
+    Send '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"search_code","arguments":{"query":"resolve calls graph","limit":5}}}'
+    Write-Output "=== search_code 'resolve calls graph' ==="
+    Write-Output $reader.ReadLine()
+
     $client.Close()
     Write-Output "DONE"
 }

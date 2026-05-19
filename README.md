@@ -15,8 +15,10 @@ hand off architectural intent to the next without re-deriving context.
 
 - **Live code graph** — tree-sitter parsing of Rust, Python, JavaScript,
   TypeScript and Go, kept in sync by a filesystem watcher.
-- **Code navigation** — file outlines, symbol definitions, caller lookup, and
-  local dependency graphs, served straight from the in-memory graph.
+- **Code navigation & search** — ranked code search, file outlines, symbol
+  definitions, caller lookup, and local dependency graphs, served straight from
+  the in-memory graph. `search_code` returns one compact row per hit, so an
+  agent spends a fraction of the tokens a raw grep would cost.
 - **Cross-agent memory** — architectural decisions, an action-history log of
   agent intents, and an append-only scratchpad for handoffs.
 - **Daemon + thin adapter** — one stateful daemon per workspace; each agent runs
@@ -67,6 +69,7 @@ The adapter uses the current working directory as the workspace root, or pass
 
 | Tool | Purpose |
 |------|---------|
+| `search_code` | Ranked symbol search — the token-efficient replacement for grep |
 | `get_file_outline` | File structure — definitions with bodies folded |
 | `get_symbol_definition` | Full source + docstring of a symbol |
 | `find_callers` | Every call site of a symbol |

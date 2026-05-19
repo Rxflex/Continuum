@@ -57,6 +57,17 @@ pub struct DependencyNode {
     pub children: Vec<DependencyNode>,
 }
 
+/// One ranked hit from `search_code`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SearchHit {
+    pub name: String,
+    pub kind: String,
+    pub path: String,
+    pub line: usize,
+    pub signature: String,
+    pub score: f32,
+}
+
 /// Coarse graph statistics, useful for diagnostics.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct GraphStats {

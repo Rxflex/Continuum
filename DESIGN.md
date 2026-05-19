@@ -167,11 +167,12 @@ breaking IPC change.
 
 ## 5. MCP Tools API
 
-The daemon exposes **10 tools** to the connected agent.
+The daemon exposes **11 tools** to the connected agent.
 
-### Code Navigation
+### Code Navigation & Search
 | Tool | Signature | Returns |
 |------|-----------|---------|
+| `search_code` | `(query: string, limit?: int, kind?: string)` | BM25-ranked symbols. One compact row per hit — the token-efficient replacement for grep. |
 | `get_file_outline` | `(path: string)` | File structure (classes, function signatures), bodies folded as `/* body omitted */`. |
 | `get_symbol_definition` | `(symbol_name: string, file_hint?: string)` | Full source + docstring of a symbol. |
 | `find_callers` | `(symbol_name: string)` | Files and line numbers where the symbol is invoked. |

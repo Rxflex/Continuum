@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 
 use continuum_core::dto::{
-    CallerRef, DependencyNode, FileOutline, GraphStats, OutlineItem, SymbolDefinition,
+    CallerRef, DependencyNode, FileOutline, GraphStats, OutlineItem, SearchHit, SymbolDefinition,
 };
 use petgraph::stable_graph::{NodeIndex, StableGraph};
 
@@ -16,6 +16,8 @@ pub struct CodeGraph {
     by_id: HashMap<String, NodeIndex>,
     by_name: HashMap<String, Vec<NodeIndex>>,
     by_file: HashMap<String, Vec<NodeIndex>>,
+    /// Search tokens per node, computed once at insert time (see `search`).
+    tokens: HashMap<NodeIndex, Vec<String>>,
 }
 
 impl CodeGraph {
@@ -45,6 +47,7 @@ impl CodeGraph {
             return;
         };
         for idx in indices {
+            self.tokens.remove(&idx);
             if let Some(node) = self.graph.remove_node(idx) {
                 self.by_id.remove(&node.id);
                 if let Some(bucket) = self.by_name.get_mut(&node.name) {
@@ -58,10 +61,12 @@ impl CodeGraph {
         let id = node.id.clone();
         let name = node.name.clone();
         let path = node.path.clone();
+        let toks = tokenize(&format!("{} {} {}", node.name, node.signature, node.source));
         let idx = self.graph.add_node(node);
         self.by_id.insert(id, idx);
         self.by_name.entry(name).or_default().push(idx);
         self.by_file.entry(path).or_default().push(idx);
+        self.tokens.insert(idx, toks);
         idx
     }
 
@@ -245,6 +250,102 @@ impl CodeGraph {
             unresolved_calls: total_calls.saturating_sub(call_edges),
         }
     }
+
+    /// Rank symbols against `query` with BM25 over name + signature + body.
+    ///
+    /// This is the token-efficient alternative to grep: results are ranked and
+    /// each hit is a single structured row (kind, name, location, signature)
+    /// rather than a dump of matching lines. `kind_filter` narrows to one
+    /// symbol kind ("function", "struct", ...).
+    pub fn search(
+        &self,
+        query: &str,
+        limit: usize,
+        kind_filter: Option<&str>,
+    ) -> Vec<SearchHit> {
+        let mut q_terms = tokenize(query);
+        q_terms.sort();
+        q_terms.dedup();
+        if q_terms.is_empty() {
+            return Vec::new();
+        }
+
+        let candidates: Vec<NodeIndex> = self
+            .graph
+            .node_indices()
+            .filter(|&i| self.graph[i].kind != NodeKind::File)
+            .filter(|&i| {
+                kind_filter.is_none_or(|k| self.graph[i].kind.as_str() == k)
+            })
+            .collect();
+        if candidates.is_empty() {
+            return Vec::new();
+        }
+
+        let n_docs = candidates.len() as f32;
+        let total_len: usize = candidates
+            .iter()
+            .map(|i| self.tokens.get(i).map_or(0, Vec::len))
+            .sum();
+        let avg_len = (total_len as f32 / n_docs).max(1.0);
+
+        // Document frequency for each query term.
+        let mut df: HashMap<&str, usize> = HashMap::new();
+        for term in &q_terms {
+            let count = candidates
+                .iter()
+                .filter(|i| {
+                    self.tokens
+                        .get(i)
+                        .is_some_and(|toks| toks.iter().any(|t| t == term))
+                })
+                .count();
+            df.insert(term.as_str(), count);
+        }
+
+        const K1: f32 = 1.2;
+        const B: f32 = 0.75;
+        let mut scored: Vec<(f32, NodeIndex)> = Vec::new();
+        for &idx in &candidates {
+            let Some(toks) = self.tokens.get(&idx) else {
+                continue;
+            };
+            let dl = toks.len() as f32;
+            let mut score = 0.0_f32;
+            for term in &q_terms {
+                let tf = toks.iter().filter(|t| *t == term).count() as f32;
+                if tf == 0.0 {
+                    continue;
+                }
+                let n_q = df.get(term.as_str()).copied().unwrap_or(0) as f32;
+                let idf = (((n_docs - n_q + 0.5) / (n_q + 0.5)) + 1.0).ln();
+                score += idf * (tf * (K1 + 1.0))
+                    / (tf + K1 * (1.0 - B + B * dl / avg_len));
+            }
+            if score > 0.0 {
+                scored.push((score, idx));
+            }
+        }
+
+        scored.sort_by(|a, b| {
+            b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal)
+        });
+        scored.truncate(limit);
+        scored
+            .into_iter()
+            .map(|(score, idx)| {
+                let node = &self.graph[idx];
+                SearchHit {
+                    name: node.name.clone(),
+                    kind: node.kind.as_str().to_string(),
+                    path: node.path.clone(),
+                    line: node.start_line,
+                    signature: node.signature.clone(),
+                    score,
+                }
+            })
+            .collect()
+    }
 }
 
 fn to_def(node: &GraphNode) -> SymbolDefinition {
@@ -257,5 +358,40 @@ fn to_def(node: &GraphNode) -> SymbolDefinition {
         signature: node.signature.clone(),
         source: node.source.clone(),
         docstring: node.docstring.clone(),
+    }
+}
+
+/// Split text into lowercase search tokens, breaking identifiers on
+/// non-alphanumeric characters and camelCase boundaries -- so a query for
+/// "resolve" matches `resolve_calls` and "graph" matches `CodeGraph`.
+fn tokenize(text: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut run = String::new();
+    for ch in text.chars() {
+        if ch.is_alphanumeric() {
+            run.push(ch);
+        } else if !run.is_empty() {
+            split_identifier(&run, &mut out);
+            run.clear();
+        }
+    }
+    if !run.is_empty() {
+        split_identifier(&run, &mut out);
+    }
+    out
+}
+
+fn split_identifier(run: &str, out: &mut Vec<String>) {
+    let chars: Vec<char> = run.chars().collect();
+    let mut piece = String::new();
+    for (i, &c) in chars.iter().enumerate() {
+        if i > 0 && c.is_uppercase() && chars[i - 1].is_lowercase() && !piece.is_empty() {
+            out.push(piece.to_lowercase());
+            piece.clear();
+        }
+        piece.push(c);
+    }
+    if !piece.is_empty() {
+        out.push(piece.to_lowercase());
     }
 }

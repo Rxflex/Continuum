@@ -59,6 +59,24 @@ pub fn tool_defs() -> Vec<ToolDef> {
             }),
         ),
         ToolDef::new(
+            "search_code",
+            "Search the codebase for symbols by name or content, ranked by relevance. \
+             Prefer this over grep/ripgrep: results are compact -- one structured row \
+             per hit (kind, name, location, signature) instead of a dump of matching lines.",
+            json!({
+                "type": "object",
+                "properties": {
+                    "query": { "type": "string", "description": "Search terms." },
+                    "limit": { "type": "integer", "default": 15 },
+                    "kind": {
+                        "type": "string",
+                        "description": "Optional filter: function, method, struct, class, enum, trait, interface."
+                    }
+                },
+                "required": ["query"]
+            }),
+        ),
+        ToolDef::new(
             "store_architectural_decision",
             "Persist a high-level design decision / ADR for future agents.",
             json!({
@@ -168,6 +186,13 @@ async fn dispatch(name: &str, args: &Value, daemon: &Arc<Daemon>) -> Result<Stri
                 .local_graph(&symbol, depth)
                 .map(pretty)
                 .ok_or_else(|| format!("symbol not found: {symbol}"))
+        }
+        "search_code" => {
+            let query = str_arg(args, "query")?;
+            let limit = args.get("limit").and_then(Value::as_u64).unwrap_or(15) as usize;
+            let kind = args.get("kind").and_then(Value::as_str);
+            let graph = daemon.graph.read().await;
+            Ok(pretty(graph.search(&query, limit, kind)))
         }
         "store_architectural_decision" => {
             let topic = str_arg(args, "topic")?;
