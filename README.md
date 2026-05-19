@@ -70,6 +70,9 @@ first use and proxies all traffic to it:
 The adapter uses the current working directory as the workspace root, or pass
 `--workspace <path>` explicitly.
 
+Per-agent configuration — Claude Code, Codex CLI, Gemini CLI, and OpenCode — is
+in [docs/agent-setup.md](docs/agent-setup.md).
+
 ## MCP tools
 
 | Tool | Purpose |
