@@ -1,0 +1,55 @@
+name: Release
+
+# Pushing a version tag (e.g. v0.1.0) builds prebuilt binaries for every
+# supported platform and attaches them to the matching GitHub Release.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: build (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: macos-13
+            target: x86_64-apple-darwin
+          - os: macos-latest
+            target: aarch64-apple-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+      - name: Build
+        run: >
+          cargo build --release --locked --target ${{ matrix.target }}
+          --bin continuum-daemon --bin continuum-adapter
+      - name: Stage binaries
+        shell: bash
+        run: |
+          mkdir -p dist
+          ext=""
+          if [ "${{ runner.os }}" = "Windows" ]; then ext=".exe"; fi
+          for bin in continuum-daemon continuum-adapter; do
+            cp "target/${{ matrix.target }}/release/${bin}${ext}" \
+               "dist/${bin}-${{ matrix.target }}${ext}"
+          done
+      - name: Attach to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*

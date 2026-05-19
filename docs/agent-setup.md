@@ -5,18 +5,18 @@ registers it the same way — as a stdio server command. The adapter auto-spawns
 the per-workspace daemon and proxies all traffic to it, so no separate daemon
 setup is needed.
 
-## Build
+## Two ways to invoke it
 
-```
-cargo build --release
-```
+Every config below shows a built binary at `/abs/path/continuum-adapter`. You
+can use either form:
 
-The adapter binary is then at `target/release/continuum-adapter`
-(`continuum-adapter.exe` on Windows). Use its **absolute path** in the configs
-below — shown here as `/abs/path/continuum-adapter`.
+- **`npx`** (no build) — replace `"command": "/abs/path/continuum-adapter",
+  "args": []` with `"command": "npx", "args": ["-y", "continuum-mcp"]`.
+- **A built binary** — `cargo build --release` produces
+  `target/release/continuum-adapter` (`.exe` on Windows); use its absolute path.
 
 The adapter treats its working directory as the workspace root. To pin a
-workspace explicitly, add `"--workspace", "/path/to/project"` to `args`.
+workspace explicitly, append `"--workspace", "/path/to/project"` to `args`.
 
 ---
 

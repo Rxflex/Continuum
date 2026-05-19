@@ -26,6 +26,9 @@ adheres to [Semantic Versioning](https://semver.org/).
   a bounded framed-message size, and a concurrent-connection cap.
 - Environment-variable configuration: `CONTINUUM_MODEL`,
   `CONTINUUM_IDLE_MINUTES`, `CONTINUUM_MAX_FILE_KIB`, `CONTINUUM_DEBOUNCE_MS`.
+- Distribution: a tag-triggered release workflow that builds prebuilt binaries
+  for Linux/macOS/Windows, and the `continuum-mcp` npm wrapper so the server
+  runs via `npx`.
 - Unit and end-to-end test suites, and a GitHub Actions CI pipeline (fmt,
   clippy, build, test on Linux and Windows).
 

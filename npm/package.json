@@ -1,0 +1,22 @@
+{
+  "name": "continuum-mcp",
+  "version": "0.1.0",
+  "description": "Continuum — a persistent, multi-agent Model Context Protocol server for shared code context and cross-agent memory",
+  "keywords": ["mcp", "model-context-protocol", "ai", "agent", "code-search"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Rxflex/Continuum.git"
+  },
+  "homepage": "https://github.com/Rxflex/Continuum",
+  "bin": {
+    "continuum-mcp": "bin/continuum.js"
+  },
+  "scripts": {
+    "postinstall": "node scripts/install.js"
+  },
+  "files": ["bin", "scripts", "README.md"],
+  "engines": {
+    "node": ">=18"
+  }
+}

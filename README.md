@@ -36,29 +36,54 @@ The daemon holds the AST knowledge graph in memory and persists agent memory to 
 local SQLite database. Adapters are stateless. See [DESIGN.md](DESIGN.md) for the
 full design.
 
-## Build
+## Installation
 
-Requires a recent stable Rust toolchain.
+### Quick start — `npx`
+
+No build step. Point any MCP-capable agent at:
+
+```json
+{
+  "command": "npx",
+  "args": ["-y", "continuum-mcp"]
+}
+```
+
+The package downloads the prebuilt binaries for your platform on first use —
+Linux x64, macOS x64/arm64, and Windows x64 are supported.
+
+### Prebuilt binaries
+
+Download `continuum-daemon` and `continuum-adapter` for your platform from the
+[latest release](https://github.com/Rxflex/Continuum/releases) and keep them in
+the same directory.
+
+### From source
+
+With a recent stable Rust toolchain:
 
 ```
 cargo build --release
 ```
 
-This produces two binaries: `continuum-daemon` and `continuum-adapter`.
+or install onto your `PATH`:
+
+```
+cargo install --git https://github.com/Rxflex/Continuum continuum-adapter continuum-daemon
+```
 
 On first run the daemon downloads a ~30 MB embedding model from HuggingFace for
 semantic search; if that fails (e.g. offline), search falls back to lexical-only
 ranking and everything else works unchanged.
 
-> **Windows without Visual Studio:** with no MSVC linker available, build against
-> the llvm-mingw toolchain — `rustup target add x86_64-pc-windows-gnullvm`, then
-> add a `.cargo/config.toml` selecting that target.
+> **Windows without Visual Studio:** with no MSVC linker, build against the
+> llvm-mingw toolchain — `rustup target add x86_64-pc-windows-gnullvm` and add a
+> `.cargo/config.toml` selecting that target.
 
 ## Connecting an agent
 
-Continuum speaks MCP over stdio through the adapter. Point any MCP-capable agent
-at the `continuum-adapter` binary; it auto-spawns the per-workspace daemon on
-first use and proxies all traffic to it:
+Continuum speaks MCP over stdio. The simplest setup is the `npx` command above;
+to use a built binary instead, point the agent at `continuum-adapter`:
 
 ```json
 {
@@ -67,8 +92,8 @@ first use and proxies all traffic to it:
 }
 ```
 
-The adapter uses the current working directory as the workspace root, or pass
-`--workspace <path>` explicitly.
+Either way the adapter auto-spawns the per-workspace daemon and treats the
+current working directory as the workspace root (or pass `--workspace <path>`).
 
 Per-agent configuration — Claude Code, Codex CLI, Gemini CLI, and OpenCode — is
 in [docs/agent-setup.md](docs/agent-setup.md).
