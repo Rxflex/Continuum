@@ -8,5 +8,5 @@ pub mod graph;
 pub mod model;
 pub mod resolver;
 
-pub use graph::CodeGraph;
+pub use graph::{CodeGraph, GraphSnapshot};
 pub use model::{CallSite, EdgeKind, EdgeResolution, GraphEdge, GraphNode, NodeKind, SymbolId};

@@ -1,9 +1,11 @@
 //! Node and edge types stored in the [`crate::CodeGraph`].
 
+use serde::{Deserialize, Serialize};
+
 /// A symbol's stable identity. Convention: `path::name::start_line`.
 pub type SymbolId = String;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum NodeKind {
     File,
     Class,
@@ -34,14 +36,14 @@ impl NodeKind {
 
 /// A call reference captured at parse time. Resolution to a definition is
 /// attempted later, best-effort, by name.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CallSite {
     pub name: String,
     pub line: usize,
 }
 
 /// A graph node: either a file or a symbol within one.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GraphNode {
     pub id: SymbolId,
     pub kind: NodeKind,

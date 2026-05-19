@@ -74,6 +74,14 @@ async fn main() -> Result<()> {
     let memory = Memory::open(&ws.db_path()).map_err(|e| anyhow::anyhow!("open memory: {e}"))?;
     let graph = Arc::new(RwLock::new(CodeGraph::new()));
 
+    // Warm start: restore the previous graph snapshot if one is present. The
+    // background re-index below then refreshes it and prunes stale files.
+    if let Some(snapshot) = ws.read_snapshot() {
+        let files = snapshot.file_count();
+        graph.write().await.restore(snapshot);
+        tracing::info!("restored {files} files from snapshot");
+    }
+
     // The semantic engine exists immediately but stays dormant until the
     // embedding model finishes loading in the background, so the daemon never
     // blocks startup on a model download.
@@ -85,9 +93,11 @@ async fn main() -> Result<()> {
         let graph = graph.clone();
         let semantic = semantic.clone();
         let root = ws.root_path();
+        let ws_snapshot = ws.clone();
         tokio::spawn(async move {
-            let n = continuum_indexer::index_workspace(&root, graph, semantic).await;
+            let n = continuum_indexer::index_workspace(&root, graph.clone(), semantic).await;
             tracing::info!("initial index complete: {n} files");
+            ws_snapshot.write_snapshot(&graph.read().await.snapshot());
         });
     }
     let _watcher =
@@ -159,9 +169,10 @@ async fn main() -> Result<()> {
         }
     }
 
-    // Clean exit: drop the lockfile so the next adapter spawns a fresh daemon
-    // instead of dialing a dead endpoint. The singleton lock and file watcher
-    // are released as their guards drop.
+    // Clean exit: persist a fresh snapshot for the next warm start, then drop
+    // the lockfile so the next adapter spawns a fresh daemon instead of dialing
+    // a dead endpoint. The singleton lock and file watcher release on drop.
+    ws.write_snapshot(&daemon.graph.read().await.snapshot());
     ws.remove_lockfile();
     tracing::info!("continuum daemon stopped");
     Ok(())

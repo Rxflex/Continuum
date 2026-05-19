@@ -7,3 +7,7 @@ license.workspace = true
 [dependencies]
 continuum-core.workspace = true
 petgraph.workspace = true
+serde.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

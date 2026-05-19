@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use continuum_core::LockFile;
+use continuum_graph::GraphSnapshot;
 use fs2::FileExt;
 
 /// A resolved workspace root and the `.continuum` directory beneath it.
@@ -71,5 +72,35 @@ impl Workspace {
 
     pub fn remove_lockfile(&self) {
         let _ = fs::remove_file(self.lockfile_path());
+    }
+
+    fn snapshot_path(&self) -> PathBuf {
+        self.continuum_dir().join("graph.json")
+    }
+
+    /// Load a previously written graph snapshot, if one exists and parses.
+    pub fn read_snapshot(&self) -> Option<GraphSnapshot> {
+        let data = fs::read_to_string(self.snapshot_path()).ok()?;
+        serde_json::from_str(&data).ok()
+    }
+
+    /// Persist a graph snapshot, writing atomically via a temp file + rename
+    /// so a crash mid-write cannot leave a corrupt snapshot.
+    pub fn write_snapshot(&self, snapshot: &GraphSnapshot) {
+        let json = match serde_json::to_string(snapshot) {
+            Ok(json) => json,
+            Err(e) => {
+                tracing::warn!("snapshot serialize failed: {e}");
+                return;
+            }
+        };
+        let tmp = self.continuum_dir().join("graph.json.tmp");
+        if let Err(e) = fs::write(&tmp, json) {
+            tracing::warn!("snapshot write failed: {e}");
+            return;
+        }
+        if let Err(e) = fs::rename(&tmp, self.snapshot_path()) {
+            tracing::warn!("snapshot rename failed: {e}");
+        }
     }
 }

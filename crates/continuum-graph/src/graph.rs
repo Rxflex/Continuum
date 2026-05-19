@@ -1,11 +1,12 @@
 //! The [`CodeGraph`]: nodes + edges + lookup indices, one source of truth.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use continuum_core::dto::{
     CallerRef, DependencyNode, FileOutline, GraphStats, OutlineItem, SearchHit, SymbolDefinition,
 };
 use petgraph::stable_graph::{NodeIndex, StableGraph};
+use serde::{Deserialize, Serialize};
 
 use crate::model::{EdgeKind, EdgeResolution, GraphEdge, GraphNode, NodeKind};
 
@@ -358,6 +359,81 @@ impl CodeGraph {
             })
             .collect()
     }
+
+    /// Capture the whole graph as a serializable snapshot for warm restart.
+    pub fn snapshot(&self) -> GraphSnapshot {
+        let mut files = Vec::new();
+        for indices in self.by_file.values() {
+            let mut file_node = None;
+            let mut symbols = Vec::new();
+            for &idx in indices {
+                let node = self.graph[idx].clone();
+                if node.kind == NodeKind::File {
+                    file_node = Some(node);
+                } else {
+                    symbols.push(node);
+                }
+            }
+            if let Some(file) = file_node {
+                files.push(FileSnapshot { file, symbols });
+            }
+        }
+        GraphSnapshot {
+            version: SNAPSHOT_VERSION,
+            files,
+        }
+    }
+
+    /// Rebuild the graph from a snapshot. An incompatible version is ignored,
+    /// leaving the graph untouched so the caller can fall back to a full index.
+    pub fn restore(&mut self, snapshot: GraphSnapshot) {
+        if snapshot.version != SNAPSHOT_VERSION {
+            return;
+        }
+        for entry in snapshot.files {
+            let path = entry.file.path.clone();
+            self.replace_file(&path, entry.file, entry.symbols);
+        }
+        self.resolve_calls();
+    }
+
+    /// Drop every file not in `keep`, returning the removed paths. Used after a
+    /// full re-index to evict files deleted while the daemon was offline.
+    pub fn retain_files(&mut self, keep: &HashSet<String>) -> Vec<String> {
+        let removed: Vec<String> = self
+            .by_file
+            .keys()
+            .filter(|path| !keep.contains(*path))
+            .cloned()
+            .collect();
+        for path in &removed {
+            self.remove_file(path);
+        }
+        removed
+    }
+}
+
+/// Bumped whenever the snapshot layout changes incompatibly.
+const SNAPSHOT_VERSION: u32 = 1;
+
+/// A serializable capture of the whole graph (see [`CodeGraph::snapshot`]).
+#[derive(Serialize, Deserialize)]
+pub struct GraphSnapshot {
+    version: u32,
+    files: Vec<FileSnapshot>,
+}
+
+impl GraphSnapshot {
+    /// Number of files captured in the snapshot.
+    pub fn file_count(&self) -> usize {
+        self.files.len()
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+struct FileSnapshot {
+    file: GraphNode,
+    symbols: Vec<GraphNode>,
 }
 
 fn to_def(node: &GraphNode) -> SymbolDefinition {
@@ -603,5 +679,46 @@ mod tests {
                 "missing token {expected}"
             );
         }
+    }
+
+    #[test]
+    fn snapshot_round_trips_through_json() {
+        let mut g = CodeGraph::new();
+        g.replace_file(
+            "a.rs",
+            GraphNode::file("a.rs", "rust"),
+            vec![sym(
+                "foo",
+                "a.rs",
+                NodeKind::Function,
+                1,
+                "fn foo",
+                "fn foo() {}",
+            )],
+        );
+        let json = serde_json::to_string(&g.snapshot()).unwrap();
+        let restored: GraphSnapshot = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored.file_count(), 1);
+
+        let mut g2 = CodeGraph::new();
+        g2.restore(restored);
+        let outline = g2.file_outline("a.rs").expect("restored outline");
+        assert_eq!(outline.items.len(), 1);
+        assert_eq!(outline.items[0].name, "foo");
+    }
+
+    #[test]
+    fn retain_files_drops_absent_files() {
+        let mut g = CodeGraph::new();
+        g.replace_file("keep.rs", GraphNode::file("keep.rs", "rust"), vec![]);
+        g.replace_file("drop.rs", GraphNode::file("drop.rs", "rust"), vec![]);
+
+        let mut keep = HashSet::new();
+        keep.insert("keep.rs".to_string());
+        let removed = g.retain_files(&keep);
+
+        assert_eq!(removed, vec!["drop.rs".to_string()]);
+        assert!(g.file_outline("keep.rs").is_some());
+        assert!(g.file_outline("drop.rs").is_none());
     }
 }

@@ -39,7 +39,7 @@ pub async fn index_workspace(
     graph: Arc<RwLock<CodeGraph>>,
     semantic: Arc<SemanticEngine>,
 ) -> usize {
-    let mut count = 0;
+    let mut indexed: std::collections::HashSet<String> = std::collections::HashSet::new();
     for abs in collect_source_files(root) {
         // Parsing is CPU-bound and lock-free; only the graph update takes the lock.
         if let Some((rel, parsed)) = parse_path(root, &abs) {
@@ -49,12 +49,21 @@ pub async fn index_workspace(
                 guard.replace_file(&rel, parsed.file_node, parsed.symbols);
             }
             semantic.index_file(&rel, docs).await;
-            count += 1;
+            indexed.insert(rel);
         }
     }
-    let mut guard = graph.write().await;
-    continuum_graph::resolver::resolve(&mut guard);
-    count
+    // Evict files that vanished while the daemon was offline — relevant when
+    // the graph was warm-started from a snapshot.
+    let removed = {
+        let mut guard = graph.write().await;
+        let removed = guard.retain_files(&indexed);
+        continuum_graph::resolver::resolve(&mut guard);
+        removed
+    };
+    for path in removed {
+        semantic.remove_file(&path).await;
+    }
+    indexed.len()
 }
 
 /// Re-index a single path after a filesystem change (or drop it if deleted).
