@@ -136,11 +136,20 @@ async fn main() -> Result<()> {
         tokio::select! {
             accepted = listener.accept() => {
                 let (stream, peer) = accepted.context("accept")?;
+                // Reserve a connection slot up front; reject past the cap so a
+                // flood of connections cannot spawn unbounded tasks.
+                if daemon.conns.fetch_add(1, Ordering::SeqCst) >= MAX_CONNECTIONS {
+                    daemon.conns.fetch_sub(1, Ordering::SeqCst);
+                    tracing::warn!("connection cap ({MAX_CONNECTIONS}) reached; rejecting {peer}");
+                    continue;
+                }
                 let d = daemon.clone();
                 tokio::spawn(async move {
-                    if let Err(e) = handle_connection(stream, d).await {
+                    if let Err(e) = handle_connection(stream, &d).await {
                         tracing::debug!("connection {peer} ended: {e}");
                     }
+                    d.conns.fetch_sub(1, Ordering::SeqCst);
+                    *d.last_activity.lock().await = Instant::now();
                 });
             }
             _ = shutdown_signal() => {
@@ -182,6 +191,10 @@ async fn shutdown_signal() {
         _ = terminate => {}
     }
 }
+
+/// Hard cap on concurrent adapter connections. Past this the daemon rejects new
+/// connections rather than spawning unbounded tasks.
+const MAX_CONNECTIONS: usize = 128;
 
 fn generate_token() -> String {
     use rand::distributions::Alphanumeric;
@@ -247,7 +260,9 @@ fn spawn_model_load(
 }
 
 /// Validate the Continuum handshake, then serve MCP for the connection's life.
-async fn handle_connection(stream: TcpStream, daemon: Arc<Daemon>) -> Result<()> {
+/// Connection accounting (the `conns` counter, `last_activity`) is handled by
+/// the accept loop's spawn wrapper.
+async fn handle_connection(stream: TcpStream, daemon: &Arc<Daemon>) -> Result<()> {
     let (read_half, mut write_half) = stream.into_split();
     let mut reader = BufReader::new(read_half);
 
@@ -268,11 +283,7 @@ async fn handle_connection(stream: TcpStream, daemon: Arc<Daemon>) -> Result<()>
         return Ok(());
     }
 
-    daemon.conns.fetch_add(1, Ordering::SeqCst);
-    let result = serve_mcp(&mut reader, &mut write_half, &daemon).await;
-    daemon.conns.fetch_sub(1, Ordering::SeqCst);
-    *daemon.last_activity.lock().await = Instant::now();
-    result
+    serve_mcp(&mut reader, &mut write_half, daemon).await
 }
 
 /// The per-connection MCP request/response loop.

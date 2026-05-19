@@ -21,7 +21,8 @@ adheres to [Semantic Versioning](https://semver.org/).
   log, and an append-only scratchpad.
 - Background embedding-model load so the daemon never blocks startup.
 - Graceful shutdown on Ctrl-C / SIGTERM.
-- Reliability limits: AST-depth cap, file-size cap, and clamped tool arguments.
+- Reliability limits: AST-depth cap, file-size cap, clamped tool arguments,
+  a bounded framed-message size, and a concurrent-connection cap.
 - Environment-variable configuration: `CONTINUUM_MODEL`,
   `CONTINUUM_IDLE_MINUTES`, `CONTINUUM_MAX_FILE_KIB`, `CONTINUUM_DEBOUNCE_MS`.
 - Unit and end-to-end test suites, and a GitHub Actions CI pipeline (fmt,
