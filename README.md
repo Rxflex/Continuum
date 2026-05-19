@@ -100,6 +100,7 @@ agent → adapter → daemon spawn chain. All are optional.
 | `get_recent_changes` | Recent agent intents |
 | `write_scratchpad` | Append to the shared scratchpad |
 | `read_scratchpad` | Read recent scratchpad entries |
+| `get_stats` | Index health — graph size, semantic-search state, uptime |
 
 ## Project layout
 

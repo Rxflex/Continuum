@@ -1,4 +1,4 @@
-//! The 10 MCP tools Continuum exposes, plus their dispatch onto graph + memory.
+//! The MCP tools Continuum exposes, plus their dispatch onto graph + memory.
 
 use std::sync::Arc;
 
@@ -134,6 +134,11 @@ pub fn tool_defs() -> Vec<ToolDef> {
                 "type": "object",
                 "properties": { "limit": { "type": "integer", "default": 10 } }
             }),
+        ),
+        ToolDef::new(
+            "get_stats",
+            "Report index health: graph size, semantic-search state, and server uptime.",
+            json!({ "type": "object", "properties": {} }),
         ),
     ]
 }
@@ -289,6 +294,24 @@ async fn dispatch(name: &str, args: &Value, daemon: &Arc<Daemon>) -> Result<Stri
                 .await
                 .map_err(|e| e.to_string())?;
             Ok(pretty(items))
+        }
+        "get_stats" => {
+            let graph_stats =
+                serde_json::to_value(daemon.graph.read().await.stats()).unwrap_or(Value::Null);
+            let report = json!({
+                "graph": graph_stats,
+                "semantic_search": if daemon.semantic.is_ready() {
+                    "ready"
+                } else {
+                    "loading or disabled"
+                },
+                "server": {
+                    "name": "continuum",
+                    "version": env!("CARGO_PKG_VERSION"),
+                    "uptime_seconds": daemon.started_at.elapsed().as_secs(),
+                },
+            });
+            Ok(pretty(report))
         }
         other => Err(format!("unknown tool: {other}")),
     }

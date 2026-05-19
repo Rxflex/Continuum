@@ -13,8 +13,9 @@ adheres to [Semantic Versioning](https://semver.org/).
 - Code knowledge graph built from tree-sitter parsing of Rust, Python,
   JavaScript, TypeScript, and Go, kept current by a debounced filesystem
   watcher.
-- 11 MCP tools: `search_code`, `get_file_outline`, `get_symbol_definition`,
-  `find_callers`, `get_local_graph`, and six cross-agent memory tools.
+- 12 MCP tools: `search_code`, `get_file_outline`, `get_symbol_definition`,
+  `find_callers`, `get_local_graph`, six cross-agent memory tools, and
+  `get_stats` for index diagnostics.
 - Hybrid `search_code` — BM25 lexical ranking fused with model2vec semantic
   embeddings via reciprocal rank fusion.
 - SQLite-backed cross-agent memory: architectural decisions, an action-history

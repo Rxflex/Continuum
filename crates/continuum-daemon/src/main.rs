@@ -48,6 +48,8 @@ pub(crate) struct Daemon {
     pub(crate) semantic: Arc<continuum_search::SemanticEngine>,
     pub(crate) conns: AtomicUsize,
     pub(crate) last_activity: Mutex<Instant>,
+    /// When the daemon started — surfaced as uptime by the `get_stats` tool.
+    pub(crate) started_at: Instant,
 }
 
 #[tokio::main]
@@ -132,6 +134,7 @@ async fn main() -> Result<()> {
         semantic,
         conns: AtomicUsize::new(0),
         last_activity: Mutex::new(Instant::now()),
+        started_at: Instant::now(),
     });
 
     if args.idle_minutes > 0 {

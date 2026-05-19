@@ -167,7 +167,7 @@ breaking IPC change.
 
 ## 5. MCP Tools API
 
-The daemon exposes **11 tools** to the connected agent.
+The daemon exposes **12 tools** to the connected agent.
 
 ### Code Navigation & Search
 | Tool | Signature | Returns |
@@ -187,6 +187,11 @@ The daemon exposes **11 tools** to the connected agent.
 | `get_recent_changes` | `(limit: int)` | Most recent intents logged by previous agents. |
 | `write_scratchpad` | `(agent_id: string, message: string)` | **Appends** an entry to the scratchpad log. |
 | `read_scratchpad` | `(limit: int)` | Returns the last N scratchpad entries. |
+
+### Diagnostics
+| Tool | Signature | Returns |
+|------|-----------|---------|
+| `get_stats` | `()` | Index health: graph size, semantic-search state, server uptime. |
 
 > **Note on `agent_id`:** v1 trusts the self-reported string. The daemon stamps a
 > server-side timestamp + monotonic sequence so ordering cannot be forged. v2:

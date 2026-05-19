@@ -123,12 +123,12 @@ fn initialize_and_list_all_tools() {
         .iter()
         .map(|t| t["name"].as_str().unwrap())
         .collect();
-    assert_eq!(names.len(), 11, "expected 11 tools, got {names:?}");
+    assert_eq!(names.len(), 12, "expected 12 tools, got {names:?}");
     for expected in [
         "search_code",
         "get_file_outline",
         "commit_intent",
-        "read_scratchpad",
+        "get_stats",
     ] {
         assert!(names.contains(&expected), "missing tool {expected}");
     }
