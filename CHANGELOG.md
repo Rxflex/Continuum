@@ -12,7 +12,7 @@ adheres to [Semantic Versioning](https://semver.org/).
   loopback, with a token handshake and one daemon per workspace.
 - Code knowledge graph built from tree-sitter parsing of Rust, Python,
   JavaScript, TypeScript, and Go, kept current by a debounced filesystem
-  watcher.
+  watcher. Indexing and `find_text` honour `.gitignore` and skip hidden files.
 - 13 MCP tools: `search_code`, `find_text`, `get_file_outline`,
   `get_symbol_definition`, `find_callers`, `get_local_graph`, six cross-agent
   memory tools, and `get_stats` for index diagnostics.

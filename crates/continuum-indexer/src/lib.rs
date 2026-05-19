@@ -158,9 +158,13 @@ fn rel_path(root: &Path, abs: &Path) -> String {
         .replace('\\', "/")
 }
 
-/// Whether a walked entry is a directory the indexer never descends into.
-fn is_skipped_dir(entry: &walkdir::DirEntry) -> bool {
-    entry.file_type().is_dir()
+/// Whether a walked entry is a directory the walker never descends into.
+///
+/// The `ignore` walker already honours `.gitignore`/`.ignore` and hidden
+/// files; this is the safety net that catches universal build and dependency
+/// directories even in a repository with no ignore rules.
+pub(crate) fn is_skipped_dir(entry: &ignore::DirEntry) -> bool {
+    entry.file_type().is_some_and(|t| t.is_dir())
         && entry
             .file_name()
             .to_str()
@@ -169,11 +173,12 @@ fn is_skipped_dir(entry: &walkdir::DirEntry) -> bool {
 }
 
 fn collect_source_files(root: &Path) -> Vec<PathBuf> {
-    walkdir::WalkDir::new(root)
-        .into_iter()
+    ignore::WalkBuilder::new(root)
+        .require_git(false)
         .filter_entry(|entry| !is_skipped_dir(entry))
-        .filter_map(|e| e.ok())
-        .filter(|e| e.file_type().is_file())
-        .map(|e| e.path().to_path_buf())
+        .build()
+        .filter_map(|entry| entry.ok())
+        .filter(|entry| entry.file_type().is_some_and(|t| t.is_file()))
+        .map(|entry| entry.path().to_path_buf())
         .collect()
 }

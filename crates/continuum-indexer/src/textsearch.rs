@@ -39,11 +39,12 @@ pub fn search_text(
         .map_err(|e| format!("invalid search pattern: {e}"))?;
 
     let mut matches = Vec::new();
-    let walk = walkdir::WalkDir::new(root)
-        .into_iter()
+    let walk = ignore::WalkBuilder::new(root)
+        .require_git(false)
         .filter_entry(|entry| !is_skipped_dir(entry))
+        .build()
         .filter_map(|entry| entry.ok())
-        .filter(|entry| entry.file_type().is_file());
+        .filter(|entry| entry.file_type().is_some_and(|t| t.is_file()));
 
     for entry in walk {
         let path = entry.path();
@@ -147,5 +148,17 @@ mod tests {
     fn invalid_regex_is_an_error() {
         let ws = workspace(&[("a.txt", "anything\n")]);
         assert!(search_text(&ws, "(unclosed", 50, true, false).is_err());
+    }
+
+    #[test]
+    fn respects_gitignore() {
+        let ws = workspace(&[
+            (".gitignore", "ignored.txt\n"),
+            ("ignored.txt", "secret needle\n"),
+            ("kept.txt", "visible needle\n"),
+        ]);
+        let hits = search_text(&ws, "needle", 50, false, false).unwrap();
+        assert_eq!(hits.len(), 1, "the gitignored file must be skipped");
+        assert_eq!(hits[0].path, "kept.txt");
     }
 }
