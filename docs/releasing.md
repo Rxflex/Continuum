@@ -32,10 +32,10 @@ so a mismatch means `npx continuum-mcp` cannot find its binaries.
 ## Publishing the npm wrapper
 
 Publishing is automated by `.github/workflows/release.yml`. Configure the npm
-package with GitHub Actions trusted publishing or add an `NPM_TOKEN` repository
-secret that can publish `continuum-mcp`. The workflow runs `npm publish
---provenance --access public` only after the platform binaries and release
-tarball jobs complete.
+package with GitHub Actions trusted publishing for repository
+`redstone-md/Continuum`, workflow `release.yml`, and environment `NPM_TOKEN`.
+The workflow runs `npm publish --provenance --access public` only after the
+platform binaries and release tarball jobs complete.
 
 `npx continuum-mcp` then works for everyone: its postinstall downloads the
 release binaries from the matching `vX.Y.Z` GitHub Release.

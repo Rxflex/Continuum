@@ -6,6 +6,14 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-05-20
+
+### Fixed
+
+- Use npm Trusted Publishing correctly by running publish on Node 24, matching
+  the configured GitHub environment, and letting npm use OIDC instead of a
+  `NODE_AUTH_TOKEN` secret.
+
 ## [0.1.2] - 2026-05-20
 
 ### Fixed
@@ -44,6 +52,7 @@ adheres to [Semantic Versioning](https://semver.org/).
 - Unit and end-to-end test suites, and a GitHub Actions CI pipeline (fmt,
   clippy, build, test on Linux and Windows).
 
-[Unreleased]: https://github.com/redstone-md/Continuum/compare/v0.1.2...main
+[Unreleased]: https://github.com/redstone-md/Continuum/compare/v0.1.3...main
+[0.1.3]: https://github.com/redstone-md/Continuum/releases/tag/v0.1.3
 [0.1.2]: https://github.com/redstone-md/Continuum/releases/tag/v0.1.2
 [0.1.1]: https://github.com/redstone-md/Continuum/releases/tag/v0.1.1
