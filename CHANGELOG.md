@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-05-20
+
 ### Added
 
 - Multi-agent MCP server with a daemon + thin-adapter architecture over TCP
@@ -20,16 +22,20 @@ adheres to [Semantic Versioning](https://semver.org/).
   embeddings via reciprocal rank fusion.
 - SQLite-backed cross-agent memory: architectural decisions, an action-history
   log, and an append-only scratchpad.
-- Background embedding-model load so the daemon never blocks startup.
+- Lazy embedding-model load so daemon startup memory stays bounded until the
+  first semantic search request.
 - Graceful shutdown on Ctrl-C / SIGTERM.
 - Reliability limits: AST-depth cap, file-size cap, clamped tool arguments,
   a bounded framed-message size, and a concurrent-connection cap.
 - Environment-variable configuration: `CONTINUUM_MODEL`,
-  `CONTINUUM_IDLE_MINUTES`, `CONTINUUM_MAX_FILE_KIB`, `CONTINUUM_DEBOUNCE_MS`.
+  `CONTINUUM_PRELOAD_MODEL`, `CONTINUUM_IDLE_MINUTES`,
+  `CONTINUUM_MAX_FILE_KIB`, `CONTINUUM_DEBOUNCE_MS`.
 - Distribution: a tag-triggered release workflow that builds prebuilt binaries
   for Linux/macOS/Windows, and the `continuum-mcp` npm wrapper so the server
   runs via `npx`.
+- Automated npm publishing from the release workflow with provenance.
 - Unit and end-to-end test suites, and a GitHub Actions CI pipeline (fmt,
   clippy, build, test on Linux and Windows).
 
-[Unreleased]: https://github.com/redstone-md/Continuum/commits/main
+[Unreleased]: https://github.com/redstone-md/Continuum/compare/v0.1.1...main
+[0.1.1]: https://github.com/redstone-md/Continuum/releases/tag/v0.1.1
