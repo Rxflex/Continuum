@@ -237,7 +237,7 @@ async fn dispatch(name: &str, args: &Value, daemon: &Arc<Daemon>) -> Result<Stri
                 let graph = daemon.graph.read().await;
                 graph.search(&query, limit * 2, kind)
             };
-            let hits = if daemon.semantic.is_ready() {
+            let hits = if daemon.semantic_state.load(Ordering::SeqCst) == SEMANTIC_READY {
                 let semantic = daemon.semantic.search(&query, limit * 2, kind).await;
                 continuum_search::fuse(lexical, semantic, limit)
             } else {
