@@ -6,6 +6,13 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-05-20
+
+### Fixed
+
+- Run both macOS release builds on `macos-latest` so npm publishing is not
+  blocked waiting for an unavailable `macos-13` runner.
+
 ## [0.1.1] - 2026-05-20
 
 ### Added
@@ -37,5 +44,6 @@ adheres to [Semantic Versioning](https://semver.org/).
 - Unit and end-to-end test suites, and a GitHub Actions CI pipeline (fmt,
   clippy, build, test on Linux and Windows).
 
-[Unreleased]: https://github.com/redstone-md/Continuum/compare/v0.1.1...main
+[Unreleased]: https://github.com/redstone-md/Continuum/compare/v0.1.2...main
+[0.1.2]: https://github.com/redstone-md/Continuum/releases/tag/v0.1.2
 [0.1.1]: https://github.com/redstone-md/Continuum/releases/tag/v0.1.1
