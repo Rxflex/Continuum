@@ -1,12 +1,16 @@
 //! The MCP tools Continuum exposes, plus their dispatch onto graph + memory.
 
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use continuum_transport::jsonrpc::{error_codes, JsonRpcError};
 use continuum_transport::mcp::{CallToolResult, ToolDef};
 use serde_json::{json, Value};
 
-use crate::Daemon;
+use crate::{
+    maybe_start_semantic_load, Daemon, SEMANTIC_DISABLED, SEMANTIC_DORMANT, SEMANTIC_LOADING,
+    SEMANTIC_READY,
+};
 
 /// Tool catalogue advertised via `tools/list`.
 pub fn tool_defs() -> Vec<ToolDef> {
@@ -237,6 +241,7 @@ async fn dispatch(name: &str, args: &Value, daemon: &Arc<Daemon>) -> Result<Stri
                 let semantic = daemon.semantic.search(&query, limit * 2, kind).await;
                 continuum_search::fuse(lexical, semantic, limit)
             } else {
+                maybe_start_semantic_load(daemon);
                 let mut hits = lexical;
                 hits.truncate(limit);
                 hits
@@ -342,11 +347,9 @@ async fn dispatch(name: &str, args: &Value, daemon: &Arc<Daemon>) -> Result<Stri
                 serde_json::to_value(daemon.graph.read().await.stats()).unwrap_or(Value::Null);
             let report = json!({
                 "graph": graph_stats,
-                "semantic_search": if daemon.semantic.is_ready() {
-                    "ready"
-                } else {
-                    "loading or disabled"
-                },
+                "semantic_search": semantic_state_label(
+                    daemon.semantic_state.load(Ordering::SeqCst)
+                ),
                 "server": {
                     "name": "continuum",
                     "version": env!("CARGO_PKG_VERSION"),
@@ -368,4 +371,14 @@ fn str_arg(args: &Value, key: &str) -> Result<String, String> {
 
 fn pretty<T: serde::Serialize>(value: T) -> String {
     serde_json::to_string_pretty(&value).unwrap_or_else(|e| format!("serialization error: {e}"))
+}
+
+fn semantic_state_label(state: u8) -> &'static str {
+    match state {
+        SEMANTIC_DORMANT => "dormant",
+        SEMANTIC_LOADING => "loading",
+        SEMANTIC_READY => "ready",
+        SEMANTIC_DISABLED => "disabled",
+        _ => "unknown",
+    }
 }

@@ -88,9 +88,9 @@ cargo install --path crates/continuum-daemon
 
 Or run `cargo build --release` and use the binaries from `target/release/`.
 
-On first run the daemon downloads a ~30 MB embedding model from HuggingFace for
-semantic search; if that fails (e.g. offline), search falls back to lexical-only
-ranking and everything else works unchanged.
+Semantic search lazily downloads a ~30 MB embedding model from HuggingFace on
+the first `search_code` call; until then, and if loading fails, search uses
+lexical-only ranking and everything else works unchanged.
 
 > **Windows without Visual Studio:** with no MSVC linker, build against the
 > llvm-mingw toolchain — `rustup target add x86_64-pc-windows-gnullvm` and add a
@@ -150,8 +150,9 @@ Run the line for your host. If you skipped step 1, replace the command
 ### 3 — Reload and verify
 
 Restart the MCP host or reload its servers, then call the `get_stats` tool — a
-JSON reply means Continuum is live. The first run downloads a ~30 MB embedding
-model; until it finishes, search is lexical-only and everything else works.
+JSON reply means Continuum is live. The first `search_code` call downloads a
+~30 MB embedding model; until it finishes, search is lexical-only and everything
+else works.
 
 Continuum is a local developer tool: nothing to commit, no secrets, one daemon
 per workspace that idles out after 30 minutes.
@@ -164,6 +165,7 @@ agent → adapter → daemon spawn chain. All are optional.
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `CONTINUUM_MODEL` | `minishlab/potion-base-8M` | Embedding-model repo. Set to `off` to disable semantic search (lexical-only). |
+| `CONTINUUM_PRELOAD_MODEL` | unset | Set to `1`, `true`, `yes`, or `on` to load semantic search at daemon startup instead of lazily. |
 | `CONTINUUM_IDLE_MINUTES` | `30` | Idle minutes before the daemon exits (`0` = never). |
 | `CONTINUUM_MAX_FILE_KIB` | `2048` | Largest file size indexed, in KiB. |
 | `CONTINUUM_DEBOUNCE_MS` | `300` | Filesystem-watch debounce window. |

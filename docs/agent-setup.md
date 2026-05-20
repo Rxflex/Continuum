@@ -97,6 +97,6 @@ In `opencode.json` (project) or `~/.config/opencode/opencode.json` (global):
   attach to it. It shuts down 30 minutes after the last adapter disconnects.
 - **Multiple agents, shared state.** Point several agents at the same workspace
   and they share one code graph and one memory store — that is the point.
-- **First run** downloads a ~30 MB embedding model. If it fails, search falls
-  back to lexical-only ranking; everything else is unaffected.
+- **First `search_code` call** downloads a ~30 MB embedding model. If it fails,
+  search falls back to lexical-only ranking; everything else is unaffected.
 - **Logs** for a workspace are in `<workspace>/.continuum/daemon.log`.

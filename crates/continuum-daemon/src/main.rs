@@ -7,7 +7,7 @@ mod mcp;
 mod tools;
 
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU8, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -46,6 +46,7 @@ pub(crate) struct Daemon {
     pub(crate) memory: Memory,
     /// Semantic search engine. Dormant until its model loads in the background.
     pub(crate) semantic: Arc<continuum_search::SemanticEngine>,
+    pub(crate) semantic_state: Arc<AtomicU8>,
     pub(crate) conns: AtomicUsize,
     pub(crate) last_activity: Mutex<Instant>,
     /// When the daemon started — surfaced as uptime by the `get_stats` tool.
@@ -108,10 +109,6 @@ async fn main() -> Result<()> {
         continuum_indexer::start_watcher(ws.root_path(), graph.clone(), semantic.clone())
             .map_err(|e| anyhow::anyhow!("start file watcher: {e}"))?;
 
-    // Load the embedding model off the startup path; it re-indexes to fill the
-    // semantic index once it is ready.
-    spawn_model_load(semantic.clone(), graph.clone(), ws.root_path());
-
     let listener = TcpListener::bind("127.0.0.1:0")
         .await
         .context("bind IPC socket")?;
@@ -134,11 +131,19 @@ async fn main() -> Result<()> {
         graph,
         memory,
         semantic,
+        semantic_state: Arc::new(AtomicU8::new(SEMANTIC_DORMANT)),
         conns: AtomicUsize::new(0),
         last_activity: Mutex::new(Instant::now()),
         started_at: Instant::now(),
         workspace_root: ws.root_path(),
     });
+
+    // Keep startup memory bounded. Semantic search loads lazily on the first
+    // `search_code` call unless explicitly preloaded for deployments that want
+    // full hybrid search ready immediately.
+    if semantic_preload_enabled() {
+        maybe_start_semantic_load(&daemon);
+    }
 
     if args.idle_minutes > 0 {
         spawn_idle_watch(
@@ -217,6 +222,11 @@ const MAX_CONNECTIONS: usize = 128;
 /// connection that never sends anything cannot hold a slot indefinitely.
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 
+pub(crate) const SEMANTIC_DORMANT: u8 = 0;
+pub(crate) const SEMANTIC_LOADING: u8 = 1;
+pub(crate) const SEMANTIC_READY: u8 = 2;
+pub(crate) const SEMANTIC_DISABLED: u8 = 3;
+
 fn generate_token() -> String {
     use rand::distributions::Alphanumeric;
     use rand::Rng;
@@ -252,18 +262,54 @@ fn spawn_model_load(
     semantic: Arc<continuum_search::SemanticEngine>,
     graph: Arc<RwLock<CodeGraph>>,
     root: PathBuf,
+    state: Arc<AtomicU8>,
 ) {
     tokio::spawn(async move {
         match tokio::task::spawn_blocking(continuum_search::Embedder::load).await {
             Ok(Ok(embedder)) => {
                 semantic.activate(embedder);
                 let n = continuum_indexer::index_workspace(&root, graph, semantic).await;
+                state.store(SEMANTIC_READY, Ordering::SeqCst);
                 tracing::info!("embedding model ready; semantic search enabled ({n} files)");
             }
-            Ok(Err(e)) => tracing::warn!("semantic search disabled (model load failed): {e}"),
-            Err(e) => tracing::warn!("semantic search disabled (load task panicked): {e}"),
+            Ok(Err(e)) => {
+                state.store(SEMANTIC_DISABLED, Ordering::SeqCst);
+                tracing::warn!("semantic search disabled (model load failed): {e}");
+            }
+            Err(e) => {
+                state.store(SEMANTIC_DISABLED, Ordering::SeqCst);
+                tracing::warn!("semantic search disabled (load task panicked): {e}");
+            }
         }
     });
+}
+
+pub(crate) fn maybe_start_semantic_load(daemon: &Arc<Daemon>) {
+    if daemon
+        .semantic_state
+        .compare_exchange(
+            SEMANTIC_DORMANT,
+            SEMANTIC_LOADING,
+            Ordering::SeqCst,
+            Ordering::SeqCst,
+        )
+        .is_err()
+    {
+        return;
+    }
+
+    spawn_model_load(
+        daemon.semantic.clone(),
+        daemon.graph.clone(),
+        daemon.workspace_root.clone(),
+        daemon.semantic_state.clone(),
+    );
+}
+
+fn semantic_preload_enabled() -> bool {
+    std::env::var("CONTINUUM_PRELOAD_MODEL")
+        .ok()
+        .is_some_and(|value| matches!(value.as_str(), "1" | "true" | "yes" | "on"))
 }
 
 /// Validate the Continuum handshake, then serve MCP for the connection's life.

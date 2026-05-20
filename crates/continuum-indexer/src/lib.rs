@@ -75,6 +75,9 @@ pub(crate) async fn reindex_one(
     graph: &Arc<RwLock<CodeGraph>>,
     semantic: &Arc<SemanticEngine>,
 ) {
+    if is_skipped_path(root, abs) {
+        return;
+    }
     let supported = abs
         .extension()
         .and_then(|e| e.to_str())
@@ -172,6 +175,17 @@ pub(crate) fn is_skipped_dir(entry: &ignore::DirEntry) -> bool {
             .unwrap_or(false)
 }
 
+pub(crate) fn is_skipped_path(root: &Path, path: &Path) -> bool {
+    path.strip_prefix(root)
+        .unwrap_or(path)
+        .components()
+        .filter_map(|component| match component {
+            std::path::Component::Normal(name) => name.to_str(),
+            _ => None,
+        })
+        .any(|name| SKIP_DIRS.contains(&name))
+}
+
 fn collect_source_files(root: &Path) -> Vec<PathBuf> {
     ignore::WalkBuilder::new(root)
         .require_git(false)
@@ -181,4 +195,24 @@ fn collect_source_files(root: &Path) -> Vec<PathBuf> {
         .filter(|entry| entry.file_type().is_some_and(|t| t.is_file()))
         .map(|entry| entry.path().to_path_buf())
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn skipped_path_matches_nested_build_dirs() {
+        let root = Path::new("/workspace");
+
+        assert!(is_skipped_path(
+            root,
+            Path::new("/workspace/target/debug/a.rs")
+        ));
+        assert!(is_skipped_path(
+            root,
+            Path::new("/workspace/pkg/node_modules/a.js")
+        ));
+        assert!(!is_skipped_path(root, Path::new("/workspace/src/lib.rs")));
+    }
 }
