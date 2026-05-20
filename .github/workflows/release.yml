@@ -83,10 +83,9 @@ jobs:
         with:
           node-version: "24.x"
           registry-url: "https://registry.npmjs.org"
-          package-manager-cache: false
       - name: Verify tag matches npm package version
         run: |
-          node -e "const pkg=require('./npm/package.json'); const tag=process.env.GITHUB_REF_NAME; if (tag !== 'v' + pkg.version) throw new Error(`${tag} does not match npm/package.json ${pkg.version}`);"
+          node -e 'const pkg=require("./npm/package.json"); const tag=process.env.GITHUB_REF_NAME; if (tag !== "v" + pkg.version) throw new Error(tag + " does not match npm/package.json " + pkg.version);'
       - name: Check npm package contents
         run: npm pack --dry-run
         working-directory: npm

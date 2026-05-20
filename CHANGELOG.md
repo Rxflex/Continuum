@@ -6,6 +6,13 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-05-20
+
+### Fixed
+
+- Quote the release tag/package-version check so the shell cannot evaluate the
+  JavaScript template string, and remove an unsupported setup-node input.
+
 ## [0.1.3] - 2026-05-20
 
 ### Fixed
@@ -52,7 +59,8 @@ adheres to [Semantic Versioning](https://semver.org/).
 - Unit and end-to-end test suites, and a GitHub Actions CI pipeline (fmt,
   clippy, build, test on Linux and Windows).
 
-[Unreleased]: https://github.com/redstone-md/Continuum/compare/v0.1.3...main
+[Unreleased]: https://github.com/redstone-md/Continuum/compare/v0.1.4...main
+[0.1.4]: https://github.com/redstone-md/Continuum/releases/tag/v0.1.4
 [0.1.3]: https://github.com/redstone-md/Continuum/releases/tag/v0.1.3
 [0.1.2]: https://github.com/redstone-md/Continuum/releases/tag/v0.1.2
 [0.1.1]: https://github.com/redstone-md/Continuum/releases/tag/v0.1.1
