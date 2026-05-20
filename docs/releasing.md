@@ -26,18 +26,19 @@ so a mismatch means `npx continuum-mcp` cannot find its binaries.
    ```
 
 4. The **Release** workflow builds `continuum-daemon` and `continuum-adapter`
-   for Linux x64, macOS x64/arm64, and Windows x64, and attaches them to the
-   GitHub Release for the tag.
+   for Linux x64, macOS x64/arm64, and Windows x64, attaches them to the GitHub
+   Release for the tag, then publishes the npm wrapper.
 
 ## Publishing the npm wrapper
 
-```sh
-cd npm
-npm publish        # add --access public on the first publish
-```
+Publishing is automated by `.github/workflows/release.yml`. Configure the npm
+package with GitHub Actions trusted publishing or add an `NPM_TOKEN` repository
+secret that can publish `continuum-mcp`. The workflow runs `npm publish
+--provenance --access public` only after the platform binaries and release
+tarball jobs complete.
 
-`npx continuum-mcp` then works for everyone — its postinstall downloads the
-release binaries.
+`npx continuum-mcp` then works for everyone: its postinstall downloads the
+release binaries from the matching `vX.Y.Z` GitHub Release.
 
 > **Note.** The release assets must be publicly downloadable for `npx` to fetch
 > them, so npm publishing is only meaningful once the repository (and therefore
